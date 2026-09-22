@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yesdhobi_ridervendor/screens/portal_selection_screen.dart';
-import 'package:yesdhobi_ridervendor/screens/vendor_login_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/vendor_home_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/vendor_new_orders_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/vendor_order_details_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/vendor_rider_booked_screen.dart';
-import 'package:yesdhobi_ridervendor/screens/vendor_active_orders_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/vendor_earnings_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/vendor_profile_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/vendor_services_rates_screen.dart';

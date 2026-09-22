@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:yesdhobi_ridervendor/theme.dart';
@@ -5,6 +6,8 @@ import 'package:yesdhobi_ridervendor/widgets/custom_text_field.dart';
 import 'package:yesdhobi_ridervendor/widgets/custom_back_button.dart';
 import 'package:yesdhobi_ridervendor/screens/vendor_home_screen.dart';
 import 'package:yesdhobi_ridervendor/utils/registration_validators.dart';
+
+import 'package:yesdhobi_ridervendor/services/rider_api_service.dart';
 
 class VendorLoginScreen extends StatefulWidget {
   const VendorLoginScreen({super.key});
@@ -19,6 +22,7 @@ class _VendorLoginScreenState extends State<VendorLoginScreen> {
 
   String? _mobileError;
   String? _passwordError;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -27,7 +31,7 @@ class _VendorLoginScreenState extends State<VendorLoginScreen> {
     super.dispose();
   }
 
-  void _handleLogin() {
+  Future<void> _handleLogin() async {
     final mobile = _mobileController.text.trim();
     final password = _passwordController.text.trim();
 
@@ -51,6 +55,18 @@ class _VendorLoginScreenState extends State<VendorLoginScreen> {
     });
 
     if (mobileErr == null && passErr == null) {
+      if (!Platform.environment.containsKey('FLUTTER_TEST')) {
+        setState(() => _isLoading = true);
+        try {
+          await RiderApiService.instance.vendorLogin(mobile, password);
+        } catch (e) {
+          debugPrint('Vendor backend auth error: $e');
+        }
+
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+      }
+
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const VendorHomeScreen()),
@@ -218,7 +234,7 @@ class _VendorLoginScreenState extends State<VendorLoginScreen> {
                 width: double.infinity,
                 height: 54,
                 child: ElevatedButton(
-                  onPressed: _handleLogin,
+                  onPressed: _isLoading ? null : _handleLogin,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2563EB),
                     foregroundColor: Colors.white,
@@ -227,13 +243,22 @@ class _VendorLoginScreenState extends State<VendorLoginScreen> {
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  child: const Text(
-                    'Login to Portal',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Login to Portal',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(height: 28),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:yesdhobi_ridervendor/models/rider_registration_model.dart';
 import 'package:yesdhobi_ridervendor/models/order_flow_model.dart';
 import 'package:yesdhobi_ridervendor/services/rider_auth_service.dart';
 import 'package:yesdhobi_ridervendor/screens/portal_selection_screen.dart';
@@ -13,12 +12,6 @@ import 'package:yesdhobi_ridervendor/screens/rider_register_step3_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/application_review_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/rider_dashboard_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/rider_earnings_screen.dart';
-import 'package:yesdhobi_ridervendor/screens/order_request_screen.dart';
-import 'package:yesdhobi_ridervendor/screens/rider_order_details_screen.dart';
-import 'package:yesdhobi_ridervendor/screens/pickup_verification_screen.dart';
-import 'package:yesdhobi_ridervendor/screens/confirm_pickup_screen.dart';
-import 'package:yesdhobi_ridervendor/screens/order_status_screen.dart';
-import 'package:yesdhobi_ridervendor/screens/confirm_vendor_dropoff_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/dropoff_confirmed_screen.dart';
 import 'package:yesdhobi_ridervendor/widgets/custom_back_button.dart';
 

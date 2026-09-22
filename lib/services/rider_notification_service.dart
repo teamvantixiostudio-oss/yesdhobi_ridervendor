@@ -27,8 +27,7 @@ class RiderNotificationService with WidgetsBindingObserver {
 
   bool _isSafePlatform() {
     try {
-      return _isInitialized &&
-          FlutterLocalNotificationsPlatform.instance != null;
+      return _isInitialized;
     } catch (_) {
       return false;
     }

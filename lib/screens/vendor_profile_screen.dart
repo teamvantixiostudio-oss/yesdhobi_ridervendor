@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:yesdhobi_ridervendor/theme.dart';
 import 'package:yesdhobi_ridervendor/widgets/vendor_bottom_nav.dart';
 import 'package:yesdhobi_ridervendor/screens/portal_selection_screen.dart';
 import 'package:yesdhobi_ridervendor/widgets/vendor_persistent_otp_banner.dart';

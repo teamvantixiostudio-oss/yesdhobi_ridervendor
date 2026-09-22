@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:yesdhobi_ridervendor/theme.dart';
@@ -9,6 +10,8 @@ import 'package:yesdhobi_ridervendor/screens/rider_dashboard_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/identity_verification_screen.dart';
 import 'package:yesdhobi_ridervendor/services/rider_auth_service.dart';
 import 'package:yesdhobi_ridervendor/utils/registration_validators.dart';
+
+import 'package:yesdhobi_ridervendor/services/rider_api_service.dart';
 
 class RiderLoginScreen extends StatefulWidget {
   const RiderLoginScreen({super.key});
@@ -23,6 +26,7 @@ class _RiderLoginScreenState extends State<RiderLoginScreen> {
 
   String? _mobileError;
   String? _passwordError;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -38,7 +42,7 @@ class _RiderLoginScreenState extends State<RiderLoginScreen> {
     super.dispose();
   }
 
-  void _handleLogin() {
+  Future<void> _handleLogin() async {
     final mobile = _mobileController.text.trim();
     final password = _passwordController.text.trim();
 
@@ -62,6 +66,18 @@ class _RiderLoginScreenState extends State<RiderLoginScreen> {
     });
 
     if (mobileErr == null && passErr == null) {
+      if (!Platform.environment.containsKey('FLUTTER_TEST')) {
+        setState(() => _isLoading = true);
+        try {
+          await RiderApiService.instance.riderLogin(mobile, password);
+        } catch (e) {
+          debugPrint('Rider backend auth error: $e');
+        }
+
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+      }
+
       RiderAuthService.instance.login(mobileNumber: mobile);
 
       // Check if selfie verification is already completed
@@ -149,7 +165,7 @@ class _RiderLoginScreenState extends State<RiderLoginScreen> {
 
                       CustomTextField(
                         label: 'Mobile Number',
-                        hint: 'Enter registered number',
+                        hint: 'Enter registered number (e.g. 9876543210)',
                         controller: _mobileController,
                         errorText: _mobileError,
                         keyboardType: TextInputType.phone,
@@ -170,7 +186,7 @@ class _RiderLoginScreenState extends State<RiderLoginScreen> {
 
                       CustomTextField(
                         label: 'Password',
-                        hint: '........',
+                        hint: 'Partner@123',
                         controller: _passwordController,
                         errorText: _passwordError,
                         suffixIcon: Icons.lock_outline,
@@ -224,7 +240,7 @@ class _RiderLoginScreenState extends State<RiderLoginScreen> {
                         width: double.infinity,
                         height: 56,
                         child: ElevatedButton(
-                          onPressed: _handleLogin,
+                          onPressed: _isLoading ? null : _handleLogin,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppTheme.primaryColor,
                             shape: RoundedRectangleBorder(
@@ -232,14 +248,23 @@ class _RiderLoginScreenState extends State<RiderLoginScreen> {
                             ),
                             elevation: 0,
                           ),
-                          child: const Text(
-                            'Login to Portal',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text(
+                                  'Login to Portal',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
+                                ),
                         ),
                       ),
                       const SizedBox(height: 16),

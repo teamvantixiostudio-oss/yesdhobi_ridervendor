@@ -5,7 +5,6 @@ import 'package:yesdhobi_ridervendor/screens/rider_dashboard_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/order_history_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/rider_earnings_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/rider_profile_screen.dart';
-import 'package:yesdhobi_ridervendor/screens/rider_login_screen.dart';
 
 void main() {
   group('Rider Bottom Navigation & 3 New Rider Screens (History, Earnings, Profile) Tests', () {

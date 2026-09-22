@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:yesdhobi_ridervendor/theme.dart';
 import 'package:yesdhobi_ridervendor/widgets/custom_back_button.dart';
 import 'package:yesdhobi_ridervendor/models/vendor_order_model.dart';
 import 'package:yesdhobi_ridervendor/services/vendor_order_service.dart';
 import 'package:yesdhobi_ridervendor/screens/vendor_rider_booked_screen.dart';
-import 'package:yesdhobi_ridervendor/widgets/vendor_persistent_otp_banner.dart';
 
 class VendorOrderDetailsScreen extends StatefulWidget {
   final VendorOrderModel? order;

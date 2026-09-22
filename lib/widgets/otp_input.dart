@@ -23,7 +23,6 @@ class OtpInput extends StatefulWidget {
 class _OtpInputState extends State<OtpInput> {
   late List<TextEditingController> _controllers;
   late List<FocusNode> _focusNodes;
-  int _focusedIndex = 0;
 
   @override
   void initState() {
@@ -35,17 +34,6 @@ class _OtpInputState extends State<OtpInput> {
       ),
     );
     _focusNodes = List.generate(widget.length, (i) => FocusNode());
-
-    for (int i = 0; i < widget.length; i++) {
-      final index = i;
-      _focusNodes[i].addListener(() {
-        if (_focusNodes[index].hasFocus) {
-          setState(() {
-            _focusedIndex = index;
-          });
-        }
-      });
-    }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Find the first empty box or focus box 0

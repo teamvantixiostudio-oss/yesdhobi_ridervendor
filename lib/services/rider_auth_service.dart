@@ -1,9 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:yesdhobi_ridervendor/models/rider_registration_model.dart';
-import 'package:yesdhobi_ridervendor/screens/rider_register_step1_screen.dart';
-import 'package:yesdhobi_ridervendor/screens/rider_register_step2_screen.dart';
-import 'package:yesdhobi_ridervendor/screens/rider_register_step3_screen.dart';
-import 'package:yesdhobi_ridervendor/screens/application_review_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/rider_dashboard_screen.dart';
 
 class RiderAuthService {
