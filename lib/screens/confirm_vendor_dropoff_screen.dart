@@ -124,7 +124,7 @@ class _ConfirmVendorDropoffScreenState
 
     _state.stage = DeliveryStage.delivered;
     _state.vendorOtp = _otp;
-    _state.dropoffTime = TimeOfDay.now().format(context);
+    _state.dropoffTime = _clockTime(DateTime.now());
 
     // Mark completed in VendorOrderService and dismiss OTP banner
     VendorOrderService.instance.verifyOtpAndCompleteOrder(_state.orderId);
@@ -136,6 +136,13 @@ class _ConfirmVendorDropoffScreenState
         builder: (_) => DropoffConfirmedScreen(orderState: _state),
       ),
     );
+  }
+
+  /// 12-hour clock without touching BuildContext after an await.
+  static String _clockTime(DateTime t) {
+    final hour = t.hour % 12 == 0 ? 12 : t.hour % 12;
+    final minute = t.minute.toString().padLeft(2, '0');
+    return '$hour:$minute ${t.hour < 12 ? 'AM' : 'PM'}';
   }
 
   String get _formattedCountdown {

@@ -2,6 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:yesdhobi_ridervendor/widgets/app_logo.dart';
 import 'package:yesdhobi_ridervendor/screens/portal_selection_screen.dart';
+import 'package:yesdhobi_ridervendor/screens/rider_dashboard_screen.dart';
+import 'package:yesdhobi_ridervendor/screens/vendor_home_screen.dart';
+import 'package:yesdhobi_ridervendor/services/api_client.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -63,20 +66,37 @@ class _SplashScreenState extends State<SplashScreen>
 
     _entranceController.forward();
 
-    _navTimer = Timer(const Duration(milliseconds: 2600), () {
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 600),
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                const PortalSelectionScreen(),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) =>
-                    FadeTransition(opacity: animation, child: child),
-          ),
-        );
+    _navTimer = Timer(const Duration(milliseconds: 2600), _resumeOrSignIn);
+  }
+
+  /// Send an already-signed-in partner straight back to their portal.
+  ///
+  /// This screen used to go to portal selection unconditionally, so closing the
+  /// app - or just letting Android reclaim it - meant logging in again every
+  /// single time, even though the tokens were sitting in storage. ApiClient
+  /// keeps the access token and which portal it belongs to; we just have to ask.
+  Future<void> _resumeOrSignIn() async {
+    Widget destination = const PortalSelectionScreen();
+    try {
+      await ApiClient.instance.init();
+      if (ApiClient.instance.isAuthenticated) {
+        destination = ApiClient.instance.activeRole == 'VENDOR'
+            ? const VendorHomeScreen()
+            : const RiderDashboardScreen();
       }
-    });
+    } catch (e) {
+      debugPrint('Could not restore the saved session: $e');
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 600),
+        pageBuilder: (context, animation, secondaryAnimation) => destination,
+        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+            FadeTransition(opacity: animation, child: child),
+      ),
+    );
   }
 
   @override

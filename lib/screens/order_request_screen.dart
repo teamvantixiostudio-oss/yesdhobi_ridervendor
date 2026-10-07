@@ -4,13 +4,20 @@ import 'package:yesdhobi_ridervendor/models/order_flow_model.dart';
 import 'package:yesdhobi_ridervendor/widgets/custom_back_button.dart';
 import 'package:yesdhobi_ridervendor/widgets/app_bottom_nav.dart';
 import 'package:yesdhobi_ridervendor/screens/rider_order_details_screen.dart';
+import 'package:yesdhobi_ridervendor/services/rider_api_service.dart';
 
 class OrderRequestScreen extends StatefulWidget {
   final OrderFlowState? orderState;
 
+  /// The live offer this screen is showing. Without it the screen can only run
+  /// as a layout preview: Accept and Reject have nothing to tell the server
+  /// about, so they must not pretend to have done so.
+  final String? requestId;
+
   const OrderRequestScreen({
     super.key,
     this.orderState,
+    this.requestId,
   });
 
   @override
@@ -21,6 +28,8 @@ class _OrderRequestScreenState extends State<OrderRequestScreen> {
   late OrderFlowState _orderState;
   int _requestIndex = 0;
 
+  /// Sample offers, used only when the screen is opened without a
+  /// `requestId` (layout preview). Never shown for a live offer.
   final List<OrderFlowState> _mockOrderRequests = [
     OrderFlowState(
       orderId: '#YD-90823',
@@ -54,7 +63,43 @@ class _OrderRequestScreenState extends State<OrderRequestScreen> {
     _orderState = widget.orderState ?? _mockOrderRequests[0];
   }
 
-  void _acceptOrder() {
+  bool _submitting = false;
+
+  bool get _isLiveOffer {
+    final id = widget.requestId;
+    return id != null && id.isNotEmpty && !id.startsWith('sample') && !id.startsWith('REQ-');
+  }
+
+  void _toast(String message, {bool bad = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: bad ? const Color(0xFFDC2626) : const Color(0xFF64748B),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  Future<void> _acceptOrder() async {
+    if (_submitting) return;
+    setState(() => _submitting = true);
+
+    // The server decides who owns the order. If it refuses - someone else took
+    // it, or the window ran out - we stay put rather than walking the rider
+    // into a job that is not theirs.
+    if (_isLiveOffer) {
+      try {
+        await RiderApiService.instance.acceptRequest(widget.requestId!);
+      } catch (e) {
+        if (!mounted) return;
+        setState(() => _submitting = false);
+        _toast(e.toString().replaceAll('Exception:', '').trim(), bad: true);
+        return;
+      }
+    }
+
+    if (!mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -63,7 +108,29 @@ class _OrderRequestScreenState extends State<OrderRequestScreen> {
     );
   }
 
-  void _rejectAndNext() {
+  Future<void> _rejectAndNext() async {
+    if (_submitting) return;
+
+    if (_isLiveOffer) {
+      setState(() => _submitting = true);
+      try {
+        await RiderApiService.instance.declineRequest(widget.requestId!);
+      } catch (e) {
+        // a decline that does not reach the server would leave the offer
+        // sitting on this rider until it expires, so say so
+        if (!mounted) return;
+        setState(() => _submitting = false);
+        _toast(e.toString().replaceAll('Exception:', '').trim(), bad: true);
+        return;
+      }
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      _toast('Order declined. It has gone to the next nearest rider.');
+      Navigator.maybePop(context);
+      return;
+    }
+
+    // layout-preview mode: step through the sample requests below
     if (_requestIndex < _mockOrderRequests.length - 1) {
       setState(() {
         _requestIndex++;
@@ -429,7 +496,7 @@ class _OrderRequestScreenState extends State<OrderRequestScreen> {
                 width: double.infinity,
                 height: 54,
                 child: ElevatedButton(
-                  onPressed: _acceptOrder,
+                  onPressed: _submitting ? null : _acceptOrder,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryColor,
                     foregroundColor: Colors.white,
@@ -455,7 +522,7 @@ class _OrderRequestScreenState extends State<OrderRequestScreen> {
                 width: double.infinity,
                 height: 54,
                 child: OutlinedButton(
-                  onPressed: _rejectAndNext,
+                  onPressed: _submitting ? null : _rejectAndNext,
                   style: OutlinedButton.styleFrom(
                     backgroundColor: Colors.white,
                     foregroundColor: const Color(0xFF334155),
