@@ -9,27 +9,40 @@ class ApiClient {
   static const String baseUrl = 'http://yesdhobi-alb-648458477.ap-southeast-2.elb.amazonaws.com/api/v1';
 
   String? _accessToken;
+  String? _activeRole; // 'RIDER' or 'VENDOR'
+  bool _isRefreshing = false;
+
+  String? get activeRole => _activeRole;
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
-    _accessToken = prefs.getString('rider_access_token');
+    _activeRole = prefs.getString('active_portal_role') ?? 'RIDER';
+    _accessToken = prefs.getString('${_activeRole?.toLowerCase()}_access_token') ?? prefs.getString('rider_access_token');
   }
 
-  Future<void> setTokens({required String accessToken, String? refreshToken}) async {
+  Future<void> setTokens({
+    required String accessToken,
+    String? refreshToken,
+    String role = 'RIDER',
+  }) async {
     _accessToken = accessToken;
+    _activeRole = role.toUpperCase();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('rider_access_token', accessToken);
-    if (refreshToken != null) {
-      await prefs.setString('rider_refresh_token', refreshToken);
+    await prefs.setString('active_portal_role', _activeRole!);
+    await prefs.setString('${_activeRole!.toLowerCase()}_access_token', accessToken);
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      await prefs.setString('${_activeRole!.toLowerCase()}_refresh_token', refreshToken);
     }
   }
 
-  Future<void> clearAuth() async {
+  Future<void> clearAuth([String? role]) async {
+    final targetRole = (role ?? _activeRole ?? 'RIDER').toLowerCase();
     _accessToken = null;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('rider_access_token');
-    await prefs.remove('rider_refresh_token');
-    await prefs.remove('rider_user');
+    await prefs.remove('${targetRole}_access_token');
+    await prefs.remove('${targetRole}_refresh_token');
+    await prefs.remove('${targetRole}_user');
+    await prefs.remove('${targetRole}_profile');
   }
 
   bool get isAuthenticated => _accessToken != null && _accessToken!.isNotEmpty;
@@ -45,26 +58,210 @@ class ApiClient {
     return headers;
   }
 
+  Future<bool> _attemptTokenRefresh() async {
+    if (_isRefreshing) return false;
+    _isRefreshing = true;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final targetRole = (_activeRole ?? 'RIDER').toLowerCase();
+      final currentRefresh = prefs.getString('${targetRole}_refresh_token');
+
+      if (currentRefresh == null || currentRefresh.isEmpty) {
+        _isRefreshing = false;
+        return false;
+      }
+
+      final url = Uri.parse('$baseUrl/auth/refresh');
+      final resp = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+        body: jsonEncode({'refreshToken': currentRefresh}),
+      ).timeout(const Duration(seconds: 10));
+
+      if (resp.statusCode == 200) {
+        final decoded = jsonDecode(resp.body);
+        if (decoded is Map<String, dynamic> && decoded.containsKey('accessToken')) {
+          final newAccess = decoded['accessToken'].toString();
+          final newRefresh = decoded['refreshToken']?.toString() ?? currentRefresh;
+          await setTokens(accessToken: newAccess, refreshToken: newRefresh, role: _activeRole ?? 'RIDER');
+          _isRefreshing = false;
+          return true;
+        }
+      }
+    } catch (_) {}
+
+    _isRefreshing = false;
+    return false;
+  }
+
   Future<Map<String, dynamic>> get(String endpoint) async {
     if (_accessToken == null) await init();
     final url = Uri.parse('$baseUrl$endpoint');
-    final response = await http
-        .get(url, headers: _buildHeaders())
-        .timeout(const Duration(seconds: 15));
-    return _parseResponse(response);
+    try {
+      final response = await http
+          .get(url, headers: _buildHeaders())
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 401) {
+        final refreshed = await _attemptTokenRefresh();
+        if (refreshed) {
+          final retryResponse = await http
+              .get(url, headers: _buildHeaders())
+              .timeout(const Duration(seconds: 15));
+          return _parseResponse(retryResponse);
+        }
+      }
+
+      return _parseResponse(response);
+    } on http.ClientException catch (e) {
+      throw Exception('Network connection failed: ${e.message}');
+    } catch (e) {
+      if (e.toString().contains('TimeoutException')) {
+        throw Exception('Server request timed out. Please check your internet connection.');
+      }
+      rethrow;
+    }
   }
 
   Future<Map<String, dynamic>> post(String endpoint, Map<String, dynamic> body) async {
     if (_accessToken == null) await init();
     final url = Uri.parse('$baseUrl$endpoint');
-    final response = await http
-        .post(
-          url,
-          headers: _buildHeaders(),
-          body: jsonEncode(body),
-        )
-        .timeout(const Duration(seconds: 15));
-    return _parseResponse(response);
+    try {
+      final response = await http
+          .post(
+            url,
+            headers: _buildHeaders(),
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 401) {
+        final refreshed = await _attemptTokenRefresh();
+        if (refreshed) {
+          final retryResponse = await http
+              .post(
+                url,
+                headers: _buildHeaders(),
+                body: jsonEncode(body),
+              )
+              .timeout(const Duration(seconds: 15));
+          return _parseResponse(retryResponse);
+        }
+      }
+
+      return _parseResponse(response);
+    } on http.ClientException catch (e) {
+      throw Exception('Network connection failed: ${e.message}');
+    } catch (e) {
+      if (e.toString().contains('TimeoutException')) {
+        throw Exception('Server request timed out. Please check your internet connection.');
+      }
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> put(String endpoint, Map<String, dynamic> body) async {
+    if (_accessToken == null) await init();
+    final url = Uri.parse('$baseUrl$endpoint');
+    try {
+      final response = await http
+          .put(
+            url,
+            headers: _buildHeaders(),
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 401) {
+        final refreshed = await _attemptTokenRefresh();
+        if (refreshed) {
+          final retryResponse = await http
+              .put(
+                url,
+                headers: _buildHeaders(),
+                body: jsonEncode(body),
+              )
+              .timeout(const Duration(seconds: 15));
+          return _parseResponse(retryResponse);
+        }
+      }
+
+      return _parseResponse(response);
+    } on http.ClientException catch (e) {
+      throw Exception('Network connection failed: ${e.message}');
+    } catch (e) {
+      if (e.toString().contains('TimeoutException')) {
+        throw Exception('Server request timed out. Please check your internet connection.');
+      }
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> patch(String endpoint, Map<String, dynamic> body) async {
+    if (_accessToken == null) await init();
+    final url = Uri.parse('$baseUrl$endpoint');
+    try {
+      final response = await http
+          .patch(
+            url,
+            headers: _buildHeaders(),
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 401) {
+        final refreshed = await _attemptTokenRefresh();
+        if (refreshed) {
+          final retryResponse = await http
+              .patch(
+                url,
+                headers: _buildHeaders(),
+                body: jsonEncode(body),
+              )
+              .timeout(const Duration(seconds: 15));
+          return _parseResponse(retryResponse);
+        }
+      }
+
+      return _parseResponse(response);
+    } on http.ClientException catch (e) {
+      throw Exception('Network connection failed: ${e.message}');
+    } catch (e) {
+      if (e.toString().contains('TimeoutException')) {
+        throw Exception('Server request timed out. Please check your internet connection.');
+      }
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> delete(String endpoint) async {
+    if (_accessToken == null) await init();
+    final url = Uri.parse('$baseUrl$endpoint');
+    try {
+      final response = await http
+          .delete(url, headers: _buildHeaders())
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 401) {
+        final refreshed = await _attemptTokenRefresh();
+        if (refreshed) {
+          final retryResponse = await http
+              .delete(url, headers: _buildHeaders())
+              .timeout(const Duration(seconds: 15));
+          return _parseResponse(retryResponse);
+        }
+      }
+
+      return _parseResponse(response);
+    } on http.ClientException catch (e) {
+      throw Exception('Network connection failed: ${e.message}');
+    } catch (e) {
+      if (e.toString().contains('TimeoutException')) {
+        throw Exception('Server request timed out. Please check your internet connection.');
+      }
+      rethrow;
+    }
   }
 
   Map<String, dynamic> _parseResponse(http.Response response) {
@@ -72,7 +269,7 @@ class ApiClient {
     try {
       decoded = jsonDecode(response.body);
     } catch (_) {
-      throw Exception('Server error: HTTP ${response.statusCode}');
+      throw Exception('Server response error: ${response.statusCode}');
     }
 
     if (response.statusCode >= 200 && response.statusCode < 300) {

@@ -29,16 +29,18 @@ void main() {
       expect(RegistrationValidators.validateMobileNumber('abcdefghij'), isNotNull);
     });
 
-    test('Email Address validation', () {
+    test('Email Address validation (Strictly @gmail.com)', () {
       expect(RegistrationValidators.validateEmail('ramesh@gmail.com'), isNull);
-      expect(RegistrationValidators.validateEmail('rahul.sharma@domain.co.in'), isNull);
-      expect(RegistrationValidators.validateEmail('user_123@sub.domain.org'), isNull);
+      expect(RegistrationValidators.validateEmail('rahul.sharma@gmail.com'), isNull);
+      expect(RegistrationValidators.validateEmail('user_123@gmail.com'), isNull);
 
       expect(RegistrationValidators.validateEmail(''), isNotNull);
       expect(RegistrationValidators.validateEmail('ramesh'), isNotNull);
       expect(RegistrationValidators.validateEmail('ramesh@'), isNotNull);
       expect(RegistrationValidators.validateEmail('@gmail.com'), isNotNull);
       expect(RegistrationValidators.validateEmail('ramesh@gmail'), isNotNull);
+      expect(RegistrationValidators.validateEmail('user@yahoo.com'), isNotNull);
+      expect(RegistrationValidators.validateEmail('rahul@domain.co.in'), isNotNull);
     });
 
     test('Date of Birth (18+ requirement)', () {

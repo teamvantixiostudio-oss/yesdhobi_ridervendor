@@ -17,6 +17,12 @@ class VendorActiveOrdersScreen extends StatefulWidget {
 class _VendorActiveOrdersScreenState extends State<VendorActiveOrdersScreen> {
   String selectedTab = 'In Progress';
 
+  @override
+  void initState() {
+    super.initState();
+    VendorOrderService.instance.fetchOrders();
+  }
+
   List<VendorOrderModel> _getFilteredOrders(List<VendorOrderModel> allOrders) {
     if (selectedTab == 'In Progress') {
       return allOrders
@@ -99,37 +105,45 @@ class _VendorActiveOrdersScreenState extends State<VendorActiveOrdersScreen> {
 
                 // Tasks List
                 Expanded(
-                  child: filteredOrders.isEmpty
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24.0),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.assignment_turned_in_outlined,
-                                  size: 48,
-                                  color: Colors.grey.shade400,
+                  child: RefreshIndicator(
+                    onRefresh: () => VendorOrderService.instance.fetchOrders(),
+                    child: filteredOrders.isEmpty
+                        ? ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: [
+                              SizedBox(
+                                  height: MediaQuery.of(context).size.height *
+                                      0.25),
+                              Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.assignment_turned_in_outlined,
+                                      size: 48,
+                                      color: Colors.grey.shade400,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      'No tasks in "$selectedTab"',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        color: Colors.grey.shade600,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'No tasks in "$selectedTab"',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    color: Colors.grey.shade600,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                      : ListView.separated(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16.0, vertical: 10.0),
-                          itemCount: filteredOrders.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 14),
+                              ),
+                            ],
+                          )
+                        : ListView.separated(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16.0, vertical: 10.0),
+                            itemCount: filteredOrders.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 14),
                           itemBuilder: (ctx, index) {
                             final order = filteredOrders[index];
                             return InkWell(
@@ -227,6 +241,7 @@ class _VendorActiveOrdersScreenState extends State<VendorActiveOrdersScreen> {
                             );
                           },
                         ),
+                  ),
                 ),
               ],
             ),

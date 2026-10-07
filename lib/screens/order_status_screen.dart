@@ -9,7 +9,9 @@ import 'package:yesdhobi_ridervendor/widgets/vendor_card.dart';
 import 'package:yesdhobi_ridervendor/widgets/order_info_card.dart';
 import 'package:yesdhobi_ridervendor/screens/confirm_vendor_dropoff_screen.dart';
 
-class OrderStatusScreen extends StatelessWidget {
+import 'package:yesdhobi_ridervendor/services/rider_api_service.dart';
+
+class OrderStatusScreen extends StatefulWidget {
   final OrderFlowState? orderState;
 
   const OrderStatusScreen({
@@ -18,8 +20,16 @@ class OrderStatusScreen extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final state = orderState ??
+  State<OrderStatusScreen> createState() => _OrderStatusScreenState();
+}
+
+class _OrderStatusScreenState extends State<OrderStatusScreen> {
+  late OrderFlowState _state;
+
+  @override
+  void initState() {
+    super.initState();
+    _state = widget.orderState ??
         OrderFlowState(
           orderId: '#YD-20240318-001',
           customerName: 'Sneha Kapoor',
@@ -30,6 +40,31 @@ class OrderStatusScreen extends StatelessWidget {
           vendorAddress: 'Shop 12, Market Complex, Sector 22, Noida',
           stage: DeliveryStage.outForDrop,
         );
+    _fetchFreshOrderDetails();
+  }
+
+  Future<void> _fetchFreshOrderDetails() async {
+    final rawId = _state.rawOrderId ??
+        _state.orderId.replaceAll('#', '').replaceAll('YD-', '');
+    if (rawId.isNotEmpty) {
+      try {
+        final orderData =
+            await RiderApiService.instance.getRiderOrderDetails(rawId);
+        if (orderData.isNotEmpty && mounted) {
+          setState(() {
+            _state = OrderFlowState.fromApiJson(orderData);
+            _state.stage = DeliveryStage.outForDrop;
+          });
+        }
+      } catch (e) {
+        debugPrint('Refreshing live vendor details note: $e');
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = _state;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -69,7 +104,18 @@ class OrderStatusScreen extends StatelessWidget {
                 tag: state.vendorTag,
                 address: state.vendorAddress,
                 useStorefrontIcon: false,
-                onCallTap: () {
+                onCallTap: () async {
+                  if (state.vendorPhone.isNotEmpty) {
+                    final cleanPhone = state.vendorPhone.replaceAll(RegExp(r'[^\d+]'), '');
+                    final telUri = Uri.parse('tel:$cleanPhone');
+                    try {
+                      if (await canLaunchUrl(telUri)) {
+                        await launchUrl(telUri);
+                        return;
+                      }
+                    } catch (_) {}
+                  }
+                  if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('Calling ${state.vendorName}...'),

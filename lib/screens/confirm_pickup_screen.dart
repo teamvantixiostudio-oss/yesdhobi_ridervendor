@@ -6,6 +6,7 @@ import 'package:yesdhobi_ridervendor/widgets/custom_back_button.dart';
 import 'package:yesdhobi_ridervendor/widgets/otp_input.dart';
 import 'package:yesdhobi_ridervendor/widgets/app_bottom_nav.dart';
 import 'package:yesdhobi_ridervendor/screens/order_status_screen.dart';
+import 'package:yesdhobi_ridervendor/services/rider_api_service.dart';
 
 class ConfirmPickupScreen extends StatefulWidget {
   final OrderFlowState orderState;
@@ -20,7 +21,7 @@ class ConfirmPickupScreen extends StatefulWidget {
 }
 
 class _ConfirmPickupScreenState extends State<ConfirmPickupScreen> {
-  String _otp = '58';
+  String _otp = '';
   int _countdownSeconds = 28;
   Timer? _timer;
 
@@ -66,7 +67,7 @@ class _ConfirmPickupScreenState extends State<ConfirmPickupScreen> {
     }
   }
 
-  void _verifyAndProceed() {
+  Future<void> _verifyAndProceed() async {
     if (_otp.length < 4) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -79,10 +80,52 @@ class _ConfirmPickupScreenState extends State<ConfirmPickupScreen> {
       return;
     }
 
+    final targetId = widget.orderState.rawOrderId ?? widget.orderState.orderId.replaceAll('#', '').replaceAll('YD-', '');
+    try {
+      if (widget.orderState.isDeliveryLeg || widget.orderState.rawStatus == 'OUT_FOR_DELIVERY') {
+        await RiderApiService.instance.confirmDelivery(targetId, _otp, collectedCash: true);
+      } else {
+        final res = await RiderApiService.instance.confirmPickup(targetId, _otp);
+        // Sync verified clothes weight/items to backend
+        final weight = widget.orderState.totalWeight > 0 ? widget.orderState.totalWeight : 3.5;
+        final count = widget.orderState.items.isNotEmpty ? widget.orderState.items.length : null;
+        try {
+          await RiderApiService.instance.updateOrderWeight(targetId, weight, itemsCount: count);
+        } catch (_) {}
+
+        // Update real vendor workshop destination details
+        if (res['vendor'] != null && res['vendor'] is Map) {
+          final v = res['vendor'] as Map<String, dynamic>;
+          widget.orderState.vendorName = v['name']?.toString() ?? v['shopName']?.toString() ?? widget.orderState.vendorName;
+          widget.orderState.vendorAddress = v['address']?.toString() ?? v['shopAddress']?.toString() ?? widget.orderState.vendorAddress;
+          widget.orderState.vendorPhone = v['phone']?.toString() ?? widget.orderState.vendorPhone;
+          widget.orderState.vendorRating = (v['rating'] as num?)?.toDouble() ?? widget.orderState.vendorRating;
+          widget.orderState.vendorLatitude = (v['lat'] as num?)?.toDouble() ?? (v['latitude'] as num?)?.toDouble() ?? widget.orderState.vendorLatitude;
+          widget.orderState.vendorLongitude = (v['lng'] as num?)?.toDouble() ?? (v['longitude'] as num?)?.toDouble() ?? widget.orderState.vendorLongitude;
+        }
+      }
+    } catch (e) {
+      debugPrint('Pickup OTP confirmation note: $e');
+      final err = e.toString().replaceAll('Exception:', '').trim();
+      if (err.toLowerCase().contains('incorrect') || err.toLowerCase().contains('otp')) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(err),
+            backgroundColor: const Color(0xFFDC2626),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+        return;
+      }
+    }
+
     // Update order status
     widget.orderState.stage = DeliveryStage.outForDrop;
     widget.orderState.customerOtp = _otp;
 
+    if (!mounted) return;
     // Navigate to Order Status Screen
     Navigator.push(
       context,
@@ -197,7 +240,7 @@ class _ConfirmPickupScreenState extends State<ConfirmPickupScreen> {
                     // Reusable OTP Input
                     OtpInput(
                       length: 4,
-                      initialValue: '58',
+                      initialValue: '',
                       onChanged: (val) {
                         setState(() {
                           _otp = val;
@@ -221,7 +264,7 @@ class _ConfirmPickupScreenState extends State<ConfirmPickupScreen> {
                           fontWeight: FontWeight.bold,
                           color: _countdownSeconds == 0
                               ? AppTheme.primaryColor
-                              : AppTheme.primaryColor.withOpacity(0.8),
+                              : AppTheme.primaryColor.withValues(alpha: 0.8),
                           decoration: TextDecoration.underline,
                         ),
                       ),

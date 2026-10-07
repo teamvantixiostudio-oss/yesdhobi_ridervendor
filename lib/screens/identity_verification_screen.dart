@@ -71,25 +71,9 @@ class _IdentityVerificationScreenState
         backgroundColor: const Color(0xFFF8FAFC),
         elevation: 0,
         leading: const CustomBackButton(),
-        title: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AppLogo(
-              size: 28,
-              borderRadius: 6,
-              iconSize: 18,
-              backgroundColor: AppTheme.primaryColor,
-            ),
-            SizedBox(width: 8),
-            Text(
-              'Yes Dhobi',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF0F172A),
-              ),
-            ),
-          ],
+        title: const YesDhobiLogo(
+          height: 28,
+          variant: LogoVariant.navy,
         ),
         centerTitle: true,
       ),

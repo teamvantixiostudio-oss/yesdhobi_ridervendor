@@ -148,14 +148,15 @@ class _VendorOrderDetailsScreenState extends State<VendorOrderDetailsScreen> {
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async {
                       Navigator.pop(dialogCtx); // Close dialog
-                      final updated = VendorOrderService.instance
+                      final updated = await VendorOrderService.instance
                           .markAsPackagedAndAssignRider(_order);
                       setState(() {
                         _order = updated;
                       });
 
+                      if (!mounted) return;
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -334,21 +335,31 @@ class _VendorOrderDetailsScreenState extends State<VendorOrderDetailsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Order Items (6)',
-                      style: TextStyle(
+                    Text(
+                      'Order Items (${_order.itemCount})',
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF0F172A),
                       ),
                     ),
                     const SizedBox(height: 12),
-                    const Divider(color: Color(0xFFF1F5F9)),
-                    _buildLaundryItemRow('Cotton Shirt', 'Wash & Iron (x3)'),
-                    const Divider(color: Color(0xFFF1F5F9)),
-                    _buildLaundryItemRow('Denim Jeans', 'Wash & Iron (x2)'),
-                    const Divider(color: Color(0xFFF1F5F9)),
-                    _buildLaundryItemRow('Bedsheet', 'Wash & Fold (x1)'),
+                    if (_order.itemsList.isNotEmpty)
+                      ..._order.itemsList.map((item) {
+                        final name = item['name']?.toString() ?? 'Garment Item';
+                        final qty = item['quantity']?.toString() ?? '1';
+                        final service = item['service']?.toString() ?? _order.serviceType;
+                        return Column(
+                          children: [
+                            const Divider(color: Color(0xFFF1F5F9)),
+                            _buildLaundryItemRow(name, '$service (x$qty)'),
+                          ],
+                        );
+                      })
+                    else ...[
+                      const Divider(color: Color(0xFFF1F5F9)),
+                      _buildLaundryItemRow(_order.serviceType, '${_order.itemCount} items'),
+                    ],
                   ],
                 ),
               ),
@@ -392,6 +403,70 @@ class _VendorOrderDetailsScreenState extends State<VendorOrderDetailsScreen> {
                         color: Color(0xFF78350F),
                         height: 1.4,
                       ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              // Processing Stage Controls
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFF1F5F9)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.02),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Update Laundry Stage',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEEF2FF),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            _order.status.replaceAll('_', ' '),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF2563EB),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildStatusBtn('WASHING', 'Washing'),
+                        _buildStatusBtn('IRONING', 'Ironing'),
+                        _buildStatusBtn('QUALITY_CHECK', 'Quality Check'),
+                        _buildStatusBtn('READY', 'Ready & Packed'),
+                      ],
                     ),
                   ],
                 ),
@@ -609,6 +684,53 @@ class _VendorOrderDetailsScreenState extends State<VendorOrderDetailsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStatusBtn(String targetStatus, String label) {
+    final bool isCurrent = _order.status == targetStatus;
+    return OutlinedButton(
+      style: OutlinedButton.styleFrom(
+        backgroundColor: isCurrent ? const Color(0xFF2563EB) : Colors.white,
+        foregroundColor: isCurrent ? Colors.white : const Color(0xFF0F172A),
+        side: BorderSide(
+          color: isCurrent ? const Color(0xFF2563EB) : const Color(0xFFCBD5E1),
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      ),
+      onPressed: () async {
+        try {
+          final id = _order.rawId ?? _order.orderId.replaceAll('#', '').replaceAll('YD-', '');
+          await VendorOrderService.instance.updateOrderStatus(id, targetStatus);
+          setState(() {
+            _order.status = targetStatus;
+            if (targetStatus == 'READY') {
+              _order.isPackaged = true;
+            }
+          });
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Order status updated to $label'),
+              backgroundColor: const Color(0xFF10B981),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to update status: $e'),
+              backgroundColor: const Color(0xFFEF4444),
+            ),
+          );
+        }
+      },
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
       ),
     );
   }

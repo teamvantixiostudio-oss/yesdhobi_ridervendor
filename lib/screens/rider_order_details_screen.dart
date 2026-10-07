@@ -3,6 +3,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:yesdhobi_ridervendor/models/order_flow_model.dart';
 import 'package:yesdhobi_ridervendor/theme.dart';
 import 'package:yesdhobi_ridervendor/screens/pickup_verification_screen.dart';
+import 'package:yesdhobi_ridervendor/screens/confirm_vendor_dropoff_screen.dart';
+import 'package:yesdhobi_ridervendor/screens/confirm_pickup_screen.dart';
 import 'package:yesdhobi_ridervendor/widgets/custom_back_button.dart';
 import 'package:yesdhobi_ridervendor/widgets/app_bottom_nav.dart';
 
@@ -54,7 +56,7 @@ class RiderOrderDetailsScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.02),
+                      color: Colors.black.withValues(alpha: 0.02),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -195,7 +197,7 @@ class RiderOrderDetailsScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.02),
+                      color: Colors.black.withValues(alpha: 0.02),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -272,7 +274,7 @@ class RiderOrderDetailsScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.02),
+                      color: Colors.black.withValues(alpha: 0.02),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -384,26 +386,95 @@ class RiderOrderDetailsScreen extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 height: 56,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => PickupVerificationScreen(orderState: state),
-                      ),
-                    );
-                  },
+                child: ElevatedButton.icon(
+                  onPressed: state.stage == DeliveryStage.delivered || state.rawStatus == 'DELIVERED'
+                      ? null
+                      : () {
+                          if (state.isDeliveryLeg) {
+                            if (state.stage == DeliveryStage.outForDrop || state.rawStatus == 'OUT_FOR_DELIVERY') {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      ConfirmPickupScreen(orderState: state),
+                                ),
+                              );
+                            } else {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      ConfirmVendorDropoffScreen(orderState: state),
+                                ),
+                              );
+                            }
+                          } else {
+                            if (state.stage == DeliveryStage.pickedUp ||
+                                state.stage == DeliveryStage.outForDrop ||
+                                state.rawStatus == 'PICKED_UP') {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      ConfirmVendorDropoffScreen(orderState: state),
+                                ),
+                              );
+                            } else {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      PickupVerificationScreen(orderState: state),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  icon: Icon(
+                    state.stage == DeliveryStage.delivered || state.rawStatus == 'DELIVERED'
+                        ? Icons.check_circle_rounded
+                        : state.isDeliveryLeg
+                            ? (state.stage == DeliveryStage.outForDrop || state.rawStatus == 'OUT_FOR_DELIVERY'
+                                ? Icons.home_rounded
+                                : Icons.storefront_rounded)
+                            : (state.stage == DeliveryStage.pickedUp ||
+                                    state.stage == DeliveryStage.outForDrop ||
+                                    state.rawStatus == 'PICKED_UP'
+                                ? Icons.storefront_rounded
+                                : Icons.local_shipping_rounded),
+                    size: 22,
+                  ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981), // Green button
+                    backgroundColor: state.stage == DeliveryStage.delivered || state.rawStatus == 'DELIVERED'
+                        ? const Color(0xFF64748B)
+                        : state.isDeliveryLeg
+                            ? (state.stage == DeliveryStage.outForDrop || state.rawStatus == 'OUT_FOR_DELIVERY'
+                                ? const Color(0xFF10B981)
+                                : const Color(0xFF2563EB))
+                            : (state.stage == DeliveryStage.pickedUp ||
+                                    state.stage == DeliveryStage.outForDrop ||
+                                    state.rawStatus == 'PICKED_UP'
+                                ? const Color(0xFF2563EB)
+                                : const Color(0xFF10B981)),
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                     elevation: 0,
                   ),
-                  child: const Text(
-                    'PickUp Laundry',
-                    style: TextStyle(
+                  label: Text(
+                    state.stage == DeliveryStage.delivered || state.rawStatus == 'DELIVERED'
+                        ? 'Order Completed'
+                        : state.isDeliveryLeg
+                            ? (state.stage == DeliveryStage.outForDrop || state.rawStatus == 'OUT_FOR_DELIVERY'
+                                ? 'Deliver to Customer'
+                                : 'Collect from Partner Shop')
+                            : (state.stage == DeliveryStage.pickedUp ||
+                                    state.stage == DeliveryStage.outForDrop ||
+                                    state.rawStatus == 'PICKED_UP'
+                                ? 'Drop Off at Partner Shop'
+                                : 'PickUp Laundry'),
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),

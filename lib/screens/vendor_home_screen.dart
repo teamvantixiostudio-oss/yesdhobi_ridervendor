@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:yesdhobi_ridervendor/widgets/vendor_bottom_nav.dart';
 import 'package:yesdhobi_ridervendor/screens/vendor_active_orders_screen.dart';
@@ -5,6 +6,7 @@ import 'package:yesdhobi_ridervendor/screens/vendor_order_details_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/vendor_services_rates_screen.dart';
 import 'package:yesdhobi_ridervendor/services/vendor_order_service.dart';
 import 'package:yesdhobi_ridervendor/widgets/vendor_persistent_otp_banner.dart';
+import 'package:yesdhobi_ridervendor/screens/portal_selection_screen.dart';
 
 class VendorHomeScreen extends StatefulWidget {
   const VendorHomeScreen({super.key});
@@ -15,6 +17,25 @@ class VendorHomeScreen extends StatefulWidget {
 
 class _VendorHomeScreenState extends State<VendorHomeScreen> {
   bool _isOpen = true;
+  Timer? _pollTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    VendorOrderService.instance.fetchOrders();
+    VendorOrderService.instance.getVendorProfile();
+    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (mounted) {
+        VendorOrderService.instance.fetchOrders();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,161 +45,217 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
         final service = VendorOrderService.instance;
         final recentOrders = service.orders;
 
+        final initials = service.shopName.isNotEmpty
+            ? service.shopName
+                .split(' ')
+                .where((s) => s.isNotEmpty)
+                .map((s) => s[0])
+                .take(2)
+                .join()
+                .toUpperCase()
+            : 'SB';
+
         return Scaffold(
           backgroundColor: const Color(0xFFF8FAFC),
           body: SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 16.0, vertical: 14.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Top Vendor Header
-                  Row(
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEEF2FF),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        alignment: Alignment.center,
-                        child: const Text(
-                          'SB',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF4F46E5),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Star Bright Laundry',
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF0F172A),
-                              ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              'Vendor ID: #V-8947',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Color(0xFF64748B),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _isOpen = !_isOpen;
-                          });
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
+            child: RefreshIndicator(
+              onRefresh: () => service.fetchOrders(),
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0, vertical: 14.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Top Vendor Header
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
                           decoration: BoxDecoration(
-                            color: _isOpen
-                                ? const Color(0xFFECFDF5)
-                                : const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: _isOpen
-                                  ? const Color(0xFF10B981).withOpacity(0.3)
-                                  : const Color(0xFF94A3B8),
+                            color: const Color(0xFFEEF2FF),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            initials,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF4F46E5),
                             ),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  color: _isOpen
-                                      ? const Color(0xFF10B981)
-                                      : const Color(0xFF94A3B8),
-                                  shape: BoxShape.circle,
+                              Text(
+                                service.shopName,
+                                style: const TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF0F172A),
                                 ),
                               ),
-                              const SizedBox(width: 6),
+                              const SizedBox(height: 2),
                               Text(
-                                _isOpen ? 'OPEN' : 'CLOSED',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: _isOpen
-                                      ? const Color(0xFF10B981)
-                                      : const Color(0xFF64748B),
+                                'Vendor ID: ${service.vendorDisplayId}',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF64748B),
                                 ),
                               ),
                             ],
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-
-                  // Persistent OTP Banner visible across vendor portal
-                  const SizedBox(height: 12),
-                  const VendorPersistentOtpBanner(),
-
-                  const SizedBox(height: 14),
-                  const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                  const SizedBox(height: 18),
-
-                  // Today's Revenue Card
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(22),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2563EB),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF2563EB).withOpacity(0.3),
-                          blurRadius: 16,
-                          offset: const Offset(0, 8),
+                        GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _isOpen = !_isOpen;
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: _isOpen
+                                  ? const Color(0xFFECFDF5)
+                                  : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: _isOpen
+                                    ? const Color(0xFF10B981).withOpacity(0.3)
+                                    : const Color(0xFF94A3B8),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color: _isOpen
+                                        ? const Color(0xFF10B981)
+                                        : const Color(0xFF94A3B8),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  _isOpen ? 'OPEN' : 'CLOSED',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: _isOpen
+                                        ? const Color(0xFF10B981)
+                                        : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.logout_rounded,
+                            color: Color(0xFF64748B),
+                            size: 20,
+                          ),
+                          tooltip: 'Logout',
+                          onPressed: () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Logout Vendor'),
+                                content: const Text(
+                                    'Are you sure you want to log out of your vendor account?'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx, false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                        backgroundColor:
+                                            const Color(0xFFEF4444)),
+                                    onPressed: () => Navigator.pop(ctx, true),
+                                    child: const Text('Logout',
+                                        style: TextStyle(color: Colors.white)),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirm == true) {
+                              await VendorOrderService.instance.logout();
+                              if (!context.mounted) return;
+                              Navigator.pushAndRemoveUntil(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const PortalSelectionScreen()),
+                                (route) => false,
+                              );
+                            }
+                          },
                         ),
                       ],
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'TODAY\'S REVENUE',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white.withOpacity(0.85),
-                                letterSpacing: 0.5,
+
+                    // Persistent OTP Banner visible across vendor portal
+                    const SizedBox(height: 12),
+                    const VendorPersistentOtpBanner(),
+
+                    const SizedBox(height: 14),
+                    const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                    const SizedBox(height: 18),
+
+                    // Today's Revenue Card
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(22),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2563EB),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF2563EB).withOpacity(0.3),
+                            blurRadius: 16,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'TODAY\'S REVENUE',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white.withOpacity(0.85),
+                                  letterSpacing: 0.5,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              '₹8,450.00',
-                              style: TextStyle(
-                                fontSize: 34,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                letterSpacing: -0.5,
+                              const SizedBox(height: 8),
+                              Text(
+                                '₹${service.todayRevenue.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontSize: 34,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  letterSpacing: -0.5,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
                         Container(
                           width: 50,
                           height: 50,
@@ -422,8 +499,9 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
               ),
             ),
           ),
-          bottomNavigationBar: const VendorBottomNav(currentIndex: 0),
-        );
+        ),
+        bottomNavigationBar: const VendorBottomNav(currentIndex: 0),
+      );
       },
     );
   }

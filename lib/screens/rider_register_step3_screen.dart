@@ -12,6 +12,7 @@ import 'package:yesdhobi_ridervendor/utils/registration_validators.dart';
 import 'package:yesdhobi_ridervendor/utils/image_picker_helper.dart';
 import 'package:yesdhobi_ridervendor/screens/application_review_screen.dart';
 import 'package:yesdhobi_ridervendor/services/rider_auth_service.dart';
+import 'package:yesdhobi_ridervendor/services/rider_api_service.dart';
 
 class RiderRegisterStep3Screen extends StatefulWidget {
   final RiderRegistrationModel? registrationModel;
@@ -28,6 +29,7 @@ class RiderRegisterStep3Screen extends StatefulWidget {
 
 class _RiderRegisterStep3ScreenState extends State<RiderRegisterStep3Screen> {
   late RiderRegistrationModel _model;
+  bool _isSubmitting = false;
 
   late TextEditingController _panController;
   late TextEditingController _bankAccountController;
@@ -118,7 +120,7 @@ class _RiderRegisterStep3ScreenState extends State<RiderRegisterStep3Screen> {
     }
   }
 
-  void _submitProfile() {
+  Future<void> _submitProfile() async {
     final panVal = _panController.text.trim().toUpperCase();
     final bankVal = _bankAccountController.text.trim();
     final ifscVal = _ifscController.text.trim().toUpperCase();
@@ -152,6 +154,54 @@ class _RiderRegisterStep3ScreenState extends State<RiderRegisterStep3Screen> {
       _model.bankAccountNumber = bankVal;
       _model.ifscCode = ifscVal;
 
+      setState(() => _isSubmitting = true);
+
+      final regPassword = _model.password.isNotEmpty
+          ? _model.password
+          : (RiderAuthService.instance.registrationModel.password.isNotEmpty
+              ? RiderAuthService.instance.registrationModel.password
+              : 'Partner@123');
+
+      try {
+        await RiderApiService.instance.riderRegister(
+          fullName: _model.fullName,
+          mobileNumber: _model.mobileNumber,
+          password: regPassword,
+          email: _model.email.isNotEmpty ? _model.email : null,
+          dateOfBirth: _model.dateOfBirth,
+        );
+
+        if (_model.vehicleNumber.isNotEmpty && _model.drivingLicenseNumber.isNotEmpty) {
+          await RiderApiService.instance.updateVehicleDetails(
+            vehicleType: _model.vehicleType,
+            vehicleNumber: _model.vehicleNumber,
+            drivingLicenseNumber: _model.drivingLicenseNumber,
+          );
+        }
+
+        await RiderApiService.instance.submitDocumentsAndBank(
+          panNumber: panVal,
+          bankAccountNumber: bankVal,
+          ifscCode: ifscVal,
+        );
+      } catch (e) {
+        debugPrint('Rider backend onboarding note: $e');
+        final err = e.toString().replaceAll('Exception:', '').trim();
+        if (!err.toLowerCase().contains('already exists')) {
+          if (!mounted) return;
+          setState(() => _isSubmitting = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(err.isNotEmpty ? err : 'Registration failed. Please check your details.'),
+              backgroundColor: const Color(0xFFEF4444),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+          return;
+        }
+      }
+
       RiderAuthService.instance.submitDocumentsAndBank(
         aadhaarFrontPath: _model.aadhaarFrontPath!,
         aadhaarFrontSize: _model.aadhaarFrontSize ?? 0,
@@ -162,10 +212,13 @@ class _RiderRegisterStep3ScreenState extends State<RiderRegisterStep3Screen> {
         ifscCode: ifscVal,
       );
 
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-          builder: (_) => const ApplicationReviewScreen(),
+          builder: (_) => const ApplicationReviewScreen(isVendor: false),
         ),
         (route) => false,
       );
@@ -189,25 +242,9 @@ class _RiderRegisterStep3ScreenState extends State<RiderRegisterStep3Screen> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: const CustomBackButton(),
-        title: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AppLogo(
-              size: 28,
-              borderRadius: 6,
-              iconSize: 18,
-              backgroundColor: AppTheme.primaryColor,
-            ),
-            SizedBox(width: 8),
-            Text(
-              'Yes Dhobi',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: Colors.black,
-              ),
-            ),
-          ],
+        title: const YesDhobiLogo(
+          height: 28,
+          variant: LogoVariant.navy,
         ),
         centerTitle: true,
       ),
@@ -315,8 +352,11 @@ class _RiderRegisterStep3ScreenState extends State<RiderRegisterStep3Screen> {
                 errorText: _panError,
                 textCapitalization: TextCapitalization.characters,
                 maxLength: 10,
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(10),
+                ],
                 onChanged: (val) {
-                  if (_panError != null) {
+                  if (_panError != null || val.length == 10) {
                     setState(() {
                       _panError = RegistrationValidators.validatePanNumber(val);
                     });
@@ -335,6 +375,7 @@ class _RiderRegisterStep3ScreenState extends State<RiderRegisterStep3Screen> {
                 maxLength: 18,
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(18),
                 ],
                 onChanged: (val) {
                   if (_bankAccountError != null) {
@@ -355,8 +396,11 @@ class _RiderRegisterStep3ScreenState extends State<RiderRegisterStep3Screen> {
                 errorText: _ifscError,
                 textCapitalization: TextCapitalization.characters,
                 maxLength: 11,
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(11),
+                ],
                 onChanged: (val) {
-                  if (_ifscError != null) {
+                  if (_ifscError != null || val.length == 11) {
                     setState(() {
                       _ifscError = RegistrationValidators.validateIfscCode(val);
                     });
@@ -371,7 +415,7 @@ class _RiderRegisterStep3ScreenState extends State<RiderRegisterStep3Screen> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: _submitProfile,
+                  onPressed: _isSubmitting ? null : _submitProfile,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.secondaryColor,
                     foregroundColor: const Color(0xFF1E293B),
@@ -380,14 +424,23 @@ class _RiderRegisterStep3ScreenState extends State<RiderRegisterStep3Screen> {
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  child: const Text(
-                    'Submit Profile',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1E293B),
-                    ),
-                  ),
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Color(0xFF1E293B),
+                          ),
+                        )
+                      : const Text(
+                          'Submit Profile',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1E293B),
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(height: 24),

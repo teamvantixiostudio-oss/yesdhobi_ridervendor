@@ -7,6 +7,7 @@ class CustomTextField extends StatelessWidget {
   final IconData? suffixIcon;
   final Widget? suffixWidget;
   final bool isPassword;
+  final bool? obscureText;
   final bool isRequired;
   final TextEditingController? controller;
   final String? errorText;
@@ -25,6 +26,7 @@ class CustomTextField extends StatelessWidget {
     this.suffixIcon,
     this.suffixWidget,
     this.isPassword = false,
+    this.obscureText,
     this.isRequired = true,
     this.controller,
     this.errorText,
@@ -83,7 +85,7 @@ class CustomTextField extends StatelessWidget {
             ),
             child: TextField(
               controller: controller,
-              obscureText: isPassword,
+              obscureText: obscureText ?? isPassword,
               readOnly: readOnly,
               onTap: onTap,
               keyboardType: keyboardType,

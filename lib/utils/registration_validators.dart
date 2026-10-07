@@ -22,31 +22,42 @@ class RegistrationValidators {
     return null;
   }
 
-  /// Validates Mobile Number (10 Indian mobile digits)
+  /// Validates Mobile Number (Strictly 10 Indian mobile digits)
   static String? validateMobileNumber(String? value) {
     if (value == null || value.trim().isEmpty) {
       return 'Please enter your mobile number';
     }
     final digitsOnly = value.replaceAll(RegExp(r'\D'), '');
     if (digitsOnly.length != 10) {
-      return 'Enter a valid 10-digit mobile number';
+      return 'Mobile number must be exactly 10 digits';
     }
     if (!RegExp(r'^[6-9]\d{9}$').hasMatch(digitsOnly)) {
-      return 'Enter a valid 10-digit mobile number starting with 6-9';
+      return 'Mobile number must start with 6, 7, 8, or 9';
     }
     return null;
   }
 
-  /// Validates Email Address
+  /// Validates Email Address (Strictly @gmail.com)
   static String? validateEmail(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'Please enter your email address';
+      return 'Please enter your Gmail address';
     }
     final trimmed = value.trim();
-    final emailRegex =
-        RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
-    if (!emailRegex.hasMatch(trimmed)) {
-      return 'Enter a valid email address';
+    final gmailRegex =
+        RegExp(r'^[a-zA-Z0-9._%+-]+@gmail\.com$', caseSensitive: false);
+    if (!gmailRegex.hasMatch(trimmed)) {
+      return 'Email must be a valid Gmail address (ending with @gmail.com)';
+    }
+    return null;
+  }
+
+  /// Validates Login Password (at least 6 characters)
+  static String? validatePassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please create a login password';
+    }
+    if (value.length < 6) {
+      return 'Password must be at least 6 characters';
     }
     return null;
   }
@@ -106,15 +117,18 @@ class RegistrationValidators {
 
   /// Validates Driving License Number
   static String? validateDrivingLicenseNumber(String? value, String vehicleType) {
+    if (vehicleType.toLowerCase() == 'bicycle') {
+      return null;
+    }
     if (value == null || value.trim().isEmpty) {
       return 'Please enter your driving license number';
     }
     final normalized = value.replaceAll(RegExp(r'[\s-]'), '').toUpperCase();
-    if (normalized.length < 9 || normalized.length > 18) {
-      return 'Enter a valid driving license number (e.g. DL-1420110012345)';
+    if (normalized.length < 13 || normalized.length > 16) {
+      return 'Enter a valid driving license (e.g. DL-1420110012345)';
     }
-    if (!RegExp(r'^[A-Z]{2}[0-9A-Z]{7,16}$').hasMatch(normalized)) {
-      return 'Enter a valid driving license number starting with state code';
+    if (!RegExp(r'^[A-Z]{2}[0-9A-Z]{11,14}$').hasMatch(normalized)) {
+      return 'Must start with 2-letter state code (e.g. DL, KA, MH)';
     }
     return null;
   }

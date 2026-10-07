@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:yesdhobi_ridervendor/theme.dart';
 import 'package:yesdhobi_ridervendor/widgets/app_logo.dart';
 import 'package:yesdhobi_ridervendor/widgets/custom_text_field.dart';
@@ -147,25 +148,9 @@ class _RiderRegisterStep2ScreenState extends State<RiderRegisterStep2Screen> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: const CustomBackButton(),
-        title: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AppLogo(
-              size: 28,
-              borderRadius: 6,
-              iconSize: 18,
-              backgroundColor: AppTheme.primaryColor,
-            ),
-            SizedBox(width: 8),
-            Text(
-              'Yes Dhobi',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: Colors.black,
-              ),
-            ),
-          ],
+        title: const YesDhobiLogo(
+          height: 28,
+          variant: LogoVariant.navy,
         ),
         centerTitle: true,
       ),
@@ -249,6 +234,11 @@ class _RiderRegisterStep2ScreenState extends State<RiderRegisterStep2Screen> {
                 controller: _vehicleNumberController,
                 errorText: _vehicleNumberError,
                 textCapitalization: TextCapitalization.characters,
+                maxLength: 13,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9\s]')),
+                  LengthLimitingTextInputFormatter(13),
+                ],
                 onChanged: (val) {
                   if (_vehicleNumberError != null) {
                     setState(() {
@@ -270,8 +260,13 @@ class _RiderRegisterStep2ScreenState extends State<RiderRegisterStep2Screen> {
                 controller: _dlNumberController,
                 errorText: _dlNumberError,
                 textCapitalization: TextCapitalization.characters,
+                maxLength: 16,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9\-]')),
+                  LengthLimitingTextInputFormatter(16),
+                ],
                 onChanged: (val) {
-                  if (_dlNumberError != null) {
+                  if (_dlNumberError != null || val.length >= 15) {
                     setState(() {
                       _dlNumberError =
                           RegistrationValidators.validateDrivingLicenseNumber(

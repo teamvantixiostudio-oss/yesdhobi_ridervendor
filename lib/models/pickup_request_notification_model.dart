@@ -126,7 +126,40 @@ class PickupRequestNotificationModel {
       distanceKm: 1.8,
       estimatedItemsText: '8–12 items',
       payout: 120.0,
-      totalSeconds: 12,
+      totalSeconds: 15,
+    );
+  }
+
+  factory PickupRequestNotificationModel.fromApiJson(Map<String, dynamic> json) {
+    final pickup = json['pickup'] as Map<String, dynamic>? ?? {};
+    final remaining = (json['remainingSeconds'] as num?)?.toInt() ?? 15;
+    final payoutVal = (json['payout'] as num?)?.toDouble() ?? 65.0;
+    final distVal = (json['distanceKm'] as num?)?.toDouble() ?? 2.5;
+
+    DateTime? expDate;
+    if (json['expiresAt'] != null) {
+      expDate = DateTime.tryParse(json['expiresAt'].toString());
+    }
+
+    final ordNum = json['orderNumber']?.toString();
+    final ordId = json['orderId']?.toString() ?? '';
+    final displayId = ordNum != null ? '#YD-$ordNum' : (ordId.isNotEmpty ? '#YD-$ordId' : '#YD-10001');
+
+    return PickupRequestNotificationModel(
+      requestId: json['requestId']?.toString() ?? '',
+      orderId: displayId,
+      customerName: json['customerName']?.toString() ?? 'Customer',
+      customerType: json['customerTier']?.toString() ?? 'Standard Customer',
+      customerTag: json['leg'] == 'DELIVERY' ? 'Delivery Leg' : 'Pickup Leg',
+      pickupAddress: pickup['address']?.toString() ?? 'Customer Address',
+      pickupArea: pickup['name']?.toString() ?? '',
+      pickupLatitude: (pickup['lat'] as num?)?.toDouble(),
+      pickupLongitude: (pickup['lng'] as num?)?.toDouble(),
+      distanceKm: distVal,
+      estimatedItemsText: json['estimatedItemsText']?.toString() ?? '${json['serviceSummary'] ?? 'Laundry Items'}',
+      payout: payoutVal,
+      totalSeconds: remaining > 0 ? remaining : 15,
+      expiresAt: expDate,
     );
   }
 }

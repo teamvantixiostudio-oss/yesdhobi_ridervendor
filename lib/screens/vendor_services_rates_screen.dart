@@ -20,6 +20,7 @@ class _VendorServicesRatesScreenState extends State<VendorServicesRatesScreen> {
   void initState() {
     super.initState();
     _serviceManager.addListener(_onServiceUpdate);
+    _serviceManager.fetchServices();
   }
 
   @override
@@ -232,7 +233,7 @@ class _VendorServicesRatesScreenState extends State<VendorServicesRatesScreen> {
 
                   // Unit Type Dropdown
                   DropdownButtonFormField<String>(
-                    value: selectedUnit,
+                    initialValue: selectedUnit,
                     decoration: InputDecoration(
                       labelText: 'Unit Type *',
                       border: OutlineInputBorder(
@@ -376,46 +377,62 @@ class _VendorServicesRatesScreenState extends State<VendorServicesRatesScreen> {
         child: Column(
           children: [
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0, vertical: 14.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header Description
-                    const Text(
-                      'Manage Your Offerings',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF0F172A),
+              child: RefreshIndicator(
+                onRefresh: () => _serviceManager.fetchServices(),
+                color: AppTheme.primaryColor,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0, vertical: 14.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header Description
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Manage Your Offerings',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                          if (_serviceManager.isLoading)
+                            const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Enable or disable catalog services and set per-unit laundry pricing.',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF64748B),
-                        height: 1.45,
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Enable or disable catalog services and set per-unit laundry pricing.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF64748B),
+                          height: 1.45,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 20),
+                      const SizedBox(height: 20),
 
-                    // Service Cards
-                    ListView.separated(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: services.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 14),
-                      itemBuilder: (ctx, index) {
-                        final service = services[index];
-                        return _buildServiceCard(service);
-                      },
-                    ),
+                      // Service Cards
+                      ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: services.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 14),
+                        itemBuilder: (ctx, index) {
+                          final service = services[index];
+                          return _buildServiceCard(service);
+                        },
+                      ),
 
-                    const SizedBox(height: 20),
-                  ],
+                      const SizedBox(height: 20),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -427,7 +444,7 @@ class _VendorServicesRatesScreenState extends State<VendorServicesRatesScreen> {
                 color: Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 10,
                     offset: const Offset(0, -4),
                   ),
@@ -482,8 +499,8 @@ class _VendorServicesRatesScreenState extends State<VendorServicesRatesScreen> {
         boxShadow: [
           BoxShadow(
             color: isEnabled
-                ? const Color(0xFF2563EB).withOpacity(0.04)
-                : Colors.black.withOpacity(0.02),
+                ? const Color(0xFF2563EB).withValues(alpha: 0.04)
+                : Colors.black.withValues(alpha: 0.02),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

@@ -4,6 +4,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:yesdhobi_ridervendor/models/pickup_request_notification_model.dart';
 import 'package:yesdhobi_ridervendor/screens/rider_order_details_screen.dart';
 import 'package:yesdhobi_ridervendor/services/rider_auth_service.dart';
+import 'package:yesdhobi_ridervendor/services/rider_api_service.dart';
 
 class RiderNotificationService with WidgetsBindingObserver {
   static final RiderNotificationService _instance =
@@ -22,6 +23,7 @@ class RiderNotificationService with WidgetsBindingObserver {
   final Set<String> _processedRequestIds = {};
   AppLifecycleState _lifecycleState = AppLifecycleState.resumed;
   bool _isInitialized = false;
+  Timer? _pollingTimer;
 
   bool get isAppForeground => _lifecycleState == AppLifecycleState.resumed;
 
@@ -163,7 +165,7 @@ class RiderNotificationService with WidgetsBindingObserver {
         '${request.customerName}\n${request.pickupAddress}, ${request.pickupArea}\n'
         'Distance: ${request.formattedDistance} • Items: ${request.estimatedItemsText}\n'
         'Payout: ${request.formattedPayout} • Urgent response needed',
-        contentTitle: 'New Request! (12s)',
+        contentTitle: 'New Request! (15s)',
         summaryText: 'Yes Dhobi Rider',
       ),
     );
@@ -194,8 +196,34 @@ class RiderNotificationService with WidgetsBindingObserver {
     }
   }
 
-  void acceptPickupRequest(PickupRequestNotificationModel request,
-      {BuildContext? context}) {
+  void startListeningForRequests() {
+    _pollingTimer?.cancel();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
+      if (!RiderAuthService.instance.isOnline) return;
+      if (activeIncomingRequest.value != null && !activeIncomingRequest.value!.isExpired) return;
+
+      try {
+        final requests = await RiderApiService.instance.getRiderRequests();
+        if (requests.isNotEmpty) {
+          final first = requests.first;
+          final model = PickupRequestNotificationModel.fromApiJson(first);
+          if (!_processedRequestIds.contains(model.requestId) && !model.isExpired) {
+            triggerIncomingPickup(model);
+          }
+        }
+      } catch (e) {
+        debugPrint('Polling rider requests: $e');
+      }
+    });
+  }
+
+  void stopListeningForRequests() {
+    _pollingTimer?.cancel();
+    _pollingTimer = null;
+  }
+
+  Future<void> acceptPickupRequest(PickupRequestNotificationModel request,
+      {BuildContext? context}) async {
     request.status = PickupRequestStatus.accepted;
     activeIncomingRequest.value = null;
 
@@ -205,19 +233,24 @@ class RiderNotificationService with WidgetsBindingObserver {
       } catch (_) {}
     }
 
+    try {
+      if (request.requestId.isNotEmpty && !request.requestId.startsWith('sample') && !request.requestId.startsWith('REQ-')) {
+        await RiderApiService.instance.acceptRequest(request.requestId);
+      }
+    } catch (e) {
+      debugPrint('Error accepting request on backend: $e');
+    }
+
     final orderState = request.toOrderFlowState();
 
-    final navContext = context ?? navigatorKey.currentContext;
-    if (navContext != null) {
-      Navigator.of(navContext).push(
-        MaterialPageRoute(
-          builder: (_) => RiderOrderDetailsScreen(orderState: orderState),
-        ),
-      );
-    }
+    navigatorKey.currentState?.push(
+      MaterialPageRoute(
+        builder: (_) => RiderOrderDetailsScreen(orderState: orderState),
+      ),
+    );
   }
 
-  void declinePickupRequest(PickupRequestNotificationModel request) {
+  Future<void> declinePickupRequest(PickupRequestNotificationModel request) async {
     request.status = PickupRequestStatus.declined;
     activeIncomingRequest.value = null;
 
@@ -226,9 +259,17 @@ class RiderNotificationService with WidgetsBindingObserver {
         _localNotifications.cancel(id: request.requestId.hashCode);
       } catch (_) {}
     }
+
+    try {
+      if (request.requestId.isNotEmpty && !request.requestId.startsWith('sample') && !request.requestId.startsWith('REQ-')) {
+        await RiderApiService.instance.declineRequest(request.requestId);
+      }
+    } catch (e) {
+      debugPrint('Error declining request on backend: $e');
+    }
   }
 
-  void expirePickupRequest(PickupRequestNotificationModel request) {
+  Future<void> expirePickupRequest(PickupRequestNotificationModel request) async {
     request.status = PickupRequestStatus.expired;
     activeIncomingRequest.value = null;
 
@@ -237,9 +278,18 @@ class RiderNotificationService with WidgetsBindingObserver {
         _localNotifications.cancel(id: request.requestId.hashCode);
       } catch (_) {}
     }
+
+    try {
+      if (request.requestId.isNotEmpty && !request.requestId.startsWith('sample') && !request.requestId.startsWith('REQ-')) {
+        await RiderApiService.instance.declineRequest(request.requestId);
+      }
+    } catch (e) {
+      debugPrint('Error expiring request on backend: $e');
+    }
   }
 
   void reset() {
+    stopListeningForRequests();
     activeIncomingRequest.value = null;
     _processedRequestIds.clear();
   }

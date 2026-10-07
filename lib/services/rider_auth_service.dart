@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:yesdhobi_ridervendor/models/rider_registration_model.dart';
 import 'package:yesdhobi_ridervendor/screens/rider_dashboard_screen.dart';
+import 'package:yesdhobi_ridervendor/services/rider_api_service.dart';
+
+import 'package:shared_preferences/shared_preferences.dart';
 
 class RiderAuthService {
   static final RiderAuthService _instance = RiderAuthService._internal();
   static RiderAuthService get instance => _instance;
 
-  RiderAuthService._internal();
+  RiderAuthService._internal() {
+    _loadPersistedState();
+  }
 
   RiderRegistrationModel _currentRegistration = RiderRegistrationModel();
   RiderOnboardingStatus _status = RiderOnboardingStatus.notStarted;
@@ -22,15 +27,36 @@ class RiderAuthService {
   String? get selfieImagePath => _selfieImagePath;
   bool get isOnline => _isOnline;
 
-  void setOnline(bool online) {
-    _isOnline = online;
+  Future<void> _loadPersistedState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _isSelfieVerified = prefs.getBool('rider_selfie_verified') ?? false;
+      _selfieImagePath = prefs.getString('rider_selfie_image_path');
+    } catch (_) {}
   }
 
-  void setSelfieVerified(bool verified, {String? imagePath}) {
+  void setOnline(bool online) {
+    _isOnline = online;
+    RiderApiService.instance
+        .setAvailability(online ? 'ONLINE' : 'OFFLINE')
+        .catchError((e) {
+      debugPrint('Sync rider availability error: $e');
+      return <String, dynamic>{};
+    });
+  }
+
+  void setSelfieVerified(bool verified, {String? imagePath}) async {
     _isSelfieVerified = verified;
-    if (imagePath != null) {
+    if (imagePath != null && imagePath.isNotEmpty) {
       _selfieImagePath = imagePath;
     }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('rider_selfie_verified', verified);
+      if (imagePath != null && imagePath.isNotEmpty) {
+        await prefs.setString('rider_selfie_image_path', imagePath);
+      }
+    } catch (_) {}
   }
 
   void setOnboardingStatus(RiderOnboardingStatus status) {
@@ -43,25 +69,35 @@ class RiderAuthService {
     _status = model.status;
   }
 
-  void login({String? mobileNumber}) {
+  void login({String? mobileNumber}) async {
     _isLoggedIn = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool('rider_selfie_verified') == true) {
+        _isSelfieVerified = true;
+      }
+      _selfieImagePath = prefs.getString('rider_selfie_image_path') ?? _selfieImagePath;
+    } catch (_) {}
+
     // Known approved rider test account
     if (mobileNumber == '9999999999') {
       setOnboardingStatus(RiderOnboardingStatus.approved);
     }
   }
 
-  void logout() {
+  void logout() async {
     _isLoggedIn = false;
-    _isSelfieVerified = false;
-    _selfieImagePath = null;
     _isOnline = true;
+    RiderApiService.instance.logout().catchError((e) {
+      debugPrint('Rider logout error: $e');
+    });
   }
 
   void updatePersonalDetails({
     required String fullName,
     required String mobileNumber,
     required String email,
+    required String password,
     required DateTime dateOfBirth,
     required String profilePhotoPath,
     required int profilePhotoSize,
@@ -69,6 +105,7 @@ class RiderAuthService {
     _currentRegistration.fullName = fullName;
     _currentRegistration.mobileNumber = mobileNumber;
     _currentRegistration.email = email;
+    _currentRegistration.password = password;
     _currentRegistration.dateOfBirth = dateOfBirth;
     _currentRegistration.profilePhotoPath = profilePhotoPath;
     _currentRegistration.profilePhotoSize = profilePhotoSize;

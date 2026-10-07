@@ -5,6 +5,7 @@ class VendorServiceModel {
   double price;
   String unit; // 'kg', 'piece', 'pair', 'item'
   final bool isCustom;
+  final int? serviceCategoryId;
 
   VendorServiceModel({
     required this.id,
@@ -13,7 +14,22 @@ class VendorServiceModel {
     required this.price,
     required this.unit,
     this.isCustom = false,
+    this.serviceCategoryId,
   });
+
+  factory VendorServiceModel.fromApiJson(Map<String, dynamic> json) {
+    final catId = json['serviceCategoryId'] is int ? json['serviceCategoryId'] as int : null;
+    final rawId = json['id']?.toString();
+    return VendorServiceModel(
+      id: (rawId != null && rawId.isNotEmpty) ? rawId : (catId != null ? 'cat_$catId' : 'svc_${DateTime.now().millisecondsSinceEpoch}'),
+      name: json['name']?.toString() ?? 'Service',
+      isEnabled: json['isEnabled'] == true,
+      price: (json['price'] as num?)?.toDouble() ?? 0.0,
+      unit: json['unit']?.toString() ?? 'kg',
+      isCustom: json['isCustom'] == true,
+      serviceCategoryId: catId,
+    );
+  }
 
   String get formattedPrice {
     final priceStr =
@@ -28,6 +44,7 @@ class VendorServiceModel {
     double? price,
     String? unit,
     bool? isCustom,
+    int? serviceCategoryId,
   }) {
     return VendorServiceModel(
       id: id ?? this.id,
@@ -36,6 +53,7 @@ class VendorServiceModel {
       price: price ?? this.price,
       unit: unit ?? this.unit,
       isCustom: isCustom ?? this.isCustom,
+      serviceCategoryId: serviceCategoryId ?? this.serviceCategoryId,
     );
   }
 }

@@ -8,6 +8,7 @@ import 'package:yesdhobi_ridervendor/widgets/vendor_card.dart';
 import 'package:yesdhobi_ridervendor/widgets/app_bottom_nav.dart';
 import 'package:yesdhobi_ridervendor/screens/dropoff_confirmed_screen.dart';
 import 'package:yesdhobi_ridervendor/services/vendor_order_service.dart';
+import 'package:yesdhobi_ridervendor/services/rider_api_service.dart';
 
 class ConfirmVendorDropoffScreen extends StatefulWidget {
   final OrderFlowState? orderState;
@@ -25,7 +26,7 @@ class ConfirmVendorDropoffScreen extends StatefulWidget {
 class _ConfirmVendorDropoffScreenState
     extends State<ConfirmVendorDropoffScreen> {
   late OrderFlowState _state;
-  String _otp = '58';
+  String _otp = '';
   int _countdownSeconds = 28;
   Timer? _timer;
 
@@ -80,7 +81,7 @@ class _ConfirmVendorDropoffScreenState
     }
   }
 
-  void _verifyAndConfirm() {
+  Future<void> _verifyAndConfirm() async {
     if (_otp.length < 4) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -93,6 +94,30 @@ class _ConfirmVendorDropoffScreenState
       return;
     }
 
+    final targetId = _state.rawOrderId ?? _state.orderId.replaceAll('#', '').replaceAll('YD-', '');
+    try {
+      if (_state.isDeliveryLeg || _state.rawStatus == 'READY') {
+        await RiderApiService.instance.confirmHandover(targetId, _otp);
+      } else {
+        await RiderApiService.instance.confirmDropoff(targetId, _otp);
+      }
+    } catch (e) {
+      debugPrint('Dropoff OTP confirmation note: $e');
+      final err = e.toString().replaceAll('Exception:', '').trim();
+      if (err.toLowerCase().contains('incorrect') || err.toLowerCase().contains('otp')) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(err),
+            backgroundColor: const Color(0xFFDC2626),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+        return;
+      }
+    }
+
     _state.stage = DeliveryStage.delivered;
     _state.vendorOtp = _otp;
     _state.dropoffTime = '10:45 AM';
@@ -100,6 +125,7 @@ class _ConfirmVendorDropoffScreenState
     // Mark completed in VendorOrderService and dismiss OTP banner
     VendorOrderService.instance.verifyOtpAndCompleteOrder(_state.orderId);
 
+    if (!mounted) return;
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -200,7 +226,7 @@ class _ConfirmVendorDropoffScreenState
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.02),
+                      color: Colors.black.withValues(alpha: 0.02),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -231,7 +257,7 @@ class _ConfirmVendorDropoffScreenState
                     // Reusable OTP Input
                     OtpInput(
                       length: 4,
-                      initialValue: '58',
+                      initialValue: '',
                       onChanged: (val) {
                         setState(() {
                           _otp = val;
@@ -258,7 +284,7 @@ class _ConfirmVendorDropoffScreenState
                                 fontWeight: FontWeight.bold,
                                 color: _countdownSeconds == 0
                                     ? AppTheme.primaryColor
-                                    : AppTheme.primaryColor.withOpacity(0.8),
+                                    : AppTheme.primaryColor.withValues(alpha: 0.8),
                                 decoration: TextDecoration.underline,
                               ),
                             ),

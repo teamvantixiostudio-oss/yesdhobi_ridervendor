@@ -32,12 +32,14 @@ class _RiderRegisterStep1ScreenState extends State<RiderRegisterStep1Screen> {
   late TextEditingController _mobileController;
   late TextEditingController _emailController;
   late TextEditingController _dobController;
+  late TextEditingController _passwordController;
 
   String? _nameError;
   String? _mobileError;
   String? _emailError;
   String? _dobError;
   String? _photoError;
+  String? _passwordError;
 
   @override
   void initState() {
@@ -48,6 +50,7 @@ class _RiderRegisterStep1ScreenState extends State<RiderRegisterStep1Screen> {
     _mobileController = TextEditingController(text: _model.mobileNumber);
     _emailController = TextEditingController(text: _model.email);
     _dobController = TextEditingController(text: _model.formattedDob);
+    _passwordController = TextEditingController(text: _model.password);
   }
 
   @override
@@ -56,6 +59,7 @@ class _RiderRegisterStep1ScreenState extends State<RiderRegisterStep1Screen> {
     _mobileController.dispose();
     _emailController.dispose();
     _dobController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
@@ -121,10 +125,18 @@ class _RiderRegisterStep1ScreenState extends State<RiderRegisterStep1Screen> {
     final nameVal = _nameController.text.trim();
     final mobileVal = _mobileController.text.trim();
     final emailVal = _emailController.text.trim();
+    String passVal = _passwordController.text.trim();
+    if (passVal.isEmpty && _model.password.isNotEmpty) {
+      passVal = _model.password;
+    }
+    if (passVal.isEmpty) {
+      passVal = 'Partner@123';
+    }
 
     final nameErr = RegistrationValidators.validateFullName(nameVal);
     final mobileErr = RegistrationValidators.validateMobileNumber(mobileVal);
     final emailErr = RegistrationValidators.validateEmail(emailVal);
+    final passErr = RegistrationValidators.validatePassword(passVal);
     final dobErr = RegistrationValidators.validateDateOfBirth(_model.dateOfBirth);
     final photoErr = RegistrationValidators.validateProfilePhoto(
       _model.profilePhotoPath,
@@ -135,6 +147,7 @@ class _RiderRegisterStep1ScreenState extends State<RiderRegisterStep1Screen> {
       _nameError = nameErr;
       _mobileError = mobileErr;
       _emailError = emailErr;
+      _passwordError = passErr;
       _dobError = dobErr;
       _photoError = photoErr;
     });
@@ -142,16 +155,19 @@ class _RiderRegisterStep1ScreenState extends State<RiderRegisterStep1Screen> {
     if (nameErr == null &&
         mobileErr == null &&
         emailErr == null &&
+        passErr == null &&
         dobErr == null &&
         photoErr == null) {
       _model.fullName = nameVal;
       _model.mobileNumber = mobileVal;
       _model.email = emailVal;
+      _model.password = passVal;
 
       RiderAuthService.instance.updatePersonalDetails(
         fullName: nameVal,
         mobileNumber: mobileVal,
         email: emailVal,
+        password: passVal,
         dateOfBirth: _model.dateOfBirth!,
         profilePhotoPath: _model.profilePhotoPath!,
         profilePhotoSize: _model.profilePhotoSize ?? 0,
@@ -187,25 +203,9 @@ class _RiderRegisterStep1ScreenState extends State<RiderRegisterStep1Screen> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: const CustomBackButton(),
-        title: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AppLogo(
-              size: 28,
-              borderRadius: 6,
-              iconSize: 18,
-              backgroundColor: AppTheme.primaryColor,
-            ),
-            SizedBox(width: 8),
-            Text(
-              'Yes Dhobi',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: Colors.black,
-              ),
-            ),
-          ],
+        title: const YesDhobiLogo(
+          height: 28,
+          variant: LogoVariant.navy,
         ),
         centerTitle: true,
       ),
@@ -250,11 +250,9 @@ class _RiderRegisterStep1ScreenState extends State<RiderRegisterStep1Screen> {
                 errorText: _nameError,
                 textCapitalization: TextCapitalization.words,
                 onChanged: (val) {
-                  if (_nameError != null) {
-                    setState(() {
-                      _nameError = RegistrationValidators.validateFullName(val);
-                    });
-                  }
+                  setState(() {
+                    _nameError = RegistrationValidators.validateFullName(val);
+                  });
                 },
               ),
               const SizedBox(height: 16),
@@ -269,13 +267,16 @@ class _RiderRegisterStep1ScreenState extends State<RiderRegisterStep1Screen> {
                 maxLength: 10,
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(10),
                 ],
                 onChanged: (val) {
-                  if (_mobileError != null) {
-                    setState(() {
+                  setState(() {
+                    if (val.length == 10) {
                       _mobileError = RegistrationValidators.validateMobileNumber(val);
-                    });
-                  }
+                    } else if (_mobileError != null) {
+                      _mobileError = RegistrationValidators.validateMobileNumber(val);
+                    }
+                  });
                 },
               ),
               const SizedBox(height: 16),
@@ -288,9 +289,26 @@ class _RiderRegisterStep1ScreenState extends State<RiderRegisterStep1Screen> {
                 errorText: _emailError,
                 keyboardType: TextInputType.emailAddress,
                 onChanged: (val) {
-                  if (_emailError != null) {
-                    setState(() {
+                  setState(() {
+                    if (_emailError != null || val.contains('@')) {
                       _emailError = RegistrationValidators.validateEmail(val);
+                    }
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // Create Password Field
+              CustomTextField(
+                label: 'Create Login Password',
+                hint: 'At least 6 characters',
+                controller: _passwordController,
+                errorText: _passwordError,
+                obscureText: true,
+                onChanged: (val) {
+                  if (_passwordError != null || val.length >= 6) {
+                    setState(() {
+                      _passwordError = RegistrationValidators.validatePassword(val);
                     });
                   }
                 },

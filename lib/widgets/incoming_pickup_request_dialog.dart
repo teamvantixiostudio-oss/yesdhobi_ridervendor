@@ -99,7 +99,7 @@ class _IncomingPickupRequestDialogState
   // Visual Reference 1: Android-style white card with circular red timer ring
   Widget _buildAndroidStyleDialog(BuildContext context) {
     final request = widget.request;
-    final totalSecs = request.totalSeconds > 0 ? request.totalSeconds : 12;
+    final totalSecs = request.totalSeconds > 0 ? request.totalSeconds : 15;
     final progress = _secondsRemaining / totalSecs;
 
     return Dialog(

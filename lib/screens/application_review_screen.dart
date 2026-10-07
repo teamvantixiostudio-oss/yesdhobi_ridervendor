@@ -3,9 +3,15 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:yesdhobi_ridervendor/theme.dart';
 import 'package:yesdhobi_ridervendor/widgets/app_logo.dart';
 import 'package:yesdhobi_ridervendor/screens/rider_login_screen.dart';
+import 'package:yesdhobi_ridervendor/screens/vendor_login_screen.dart';
 
 class ApplicationReviewScreen extends StatelessWidget {
-  const ApplicationReviewScreen({super.key});
+  final bool isVendor;
+
+  const ApplicationReviewScreen({
+    super.key,
+    this.isVendor = false,
+  });
 
   Future<void> _makePhoneCall(BuildContext context, String phoneNumber) async {
     final Uri launchUri = Uri(
@@ -37,16 +43,22 @@ class ApplicationReviewScreen extends StatelessWidget {
     }
   }
 
+  void _navigateToLogin(BuildContext context) {
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => isVendor ? const VendorLoginScreen() : const RiderLoginScreen(),
+      ),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const RiderLoginScreen()),
-          (route) => false,
-        );
+        _navigateToLogin(context);
       },
       child: Scaffold(
         backgroundColor: AppTheme.primaryColor,
@@ -68,70 +80,58 @@ class ApplicationReviewScreen extends StatelessWidget {
                         children: [
                           const SizedBox(height: 12),
 
-                          // Top Logo
-                          const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              AppLogo(
-                                size: 32,
-                                borderRadius: 8,
-                                iconSize: 20,
-                                backgroundColor: Color(0xFF5A72F6),
-                              ),
-                              SizedBox(width: 12),
-                              Text(
-                                'Yes Dhobi',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
+                          // Top Official Logo
+                          const Center(
+                            child: YesDhobiLogo(
+                              height: 34,
+                              variant: LogoVariant.white,
+                            ),
                           ),
-                          const SizedBox(height: 40),
+                          const SizedBox(height: 36),
 
-                          const Text(
-                            'Application Under Review',
-                            style: TextStyle(
+                          Text(
+                            isVendor ? 'Shop Application Under Review' : 'Application Under Review',
+                            style: const TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
                               color: Colors.white,
                             ),
                           ),
                           const SizedBox(height: 10),
-                          const Text(
-                            'Thank you for registering. Our team is verifying your documents.',
-                            style: TextStyle(
+                          Text(
+                            isVendor
+                                ? 'Thank you for registering on yesdhobi.com. Your laundry shop details are being verified by Yes Dhobi Admin. You will be able to access the portal once activated in the Admin Portal.'
+                                : 'Thank you for registering. Our team is verifying your documents and vehicle details.',
+                            style: const TextStyle(
                               fontSize: 14,
                               color: Colors.white70,
                               height: 1.5,
                             ),
                           ),
-                          const SizedBox(height: 40),
+                          const SizedBox(height: 36),
 
                           // Timeline Steps
                           _buildTimelineStep(
-                            title: 'Application Received',
+                            title: isVendor ? 'Web Registration Submitted' : 'Application Received',
                             isCompleted: true,
                             isActive: false,
                             isLast: false,
                           ),
                           _buildTimelineStep(
-                            title: 'Verification Call',
-                            subtitle: 'Within 24 hours from support',
+                            title: 'Admin Verification & KYC Review',
+                            subtitle: 'Under review in Yes Dhobi Admin Portal',
                             isCompleted: false,
                             isActive: true,
                             isLast: false,
                           ),
                           _buildTimelineStep(
-                            title: 'Document & Shop Check',
+                            title: isVendor ? 'Shop Equipment & Rate Check' : 'Document & Vehicle Check',
                             isCompleted: false,
                             isActive: false,
                             isLast: false,
                           ),
                           _buildTimelineStep(
-                            title: 'Account Activation',
+                            title: 'Portal Access Activation',
                             isCompleted: false,
                             isActive: false,
                             isLast: true,
@@ -178,19 +178,12 @@ class ApplicationReviewScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 16),
 
-                          // Continue to Rider Login CTA Button
+                          // Back to Login CTA Button
                           SizedBox(
                             width: double.infinity,
                             height: 56,
                             child: OutlinedButton(
-                              onPressed: () {
-                                Navigator.of(context).pushAndRemoveUntil(
-                                  MaterialPageRoute(
-                                      builder: (_) =>
-                                          const RiderLoginScreen()),
-                                  (route) => false,
-                                );
-                              },
+                              onPressed: () => _navigateToLogin(context),
                               style: OutlinedButton.styleFrom(
                                 side: const BorderSide(
                                     color: Colors.white, width: 1.5),
@@ -199,9 +192,9 @@ class ApplicationReviewScreen extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(14),
                                 ),
                               ),
-                              child: const Text(
-                                'Continue to Rider Login',
-                                style: TextStyle(
+                              child: Text(
+                                isVendor ? 'Back to Vendor Login' : 'Continue to Rider Login',
+                                style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
                                   color: Colors.white,
@@ -238,71 +231,55 @@ class ApplicationReviewScreen extends StatelessWidget {
             width: 28,
             child: Column(
               children: [
-                if (isCompleted)
-                  Container(
-                    width: 24,
-                    height: 24,
-                    decoration: const BoxDecoration(
-                      color: AppTheme.secondaryColor,
-                      shape: BoxShape.circle,
-                    ),
-                  )
-                else if (isActive)
-                  Container(
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppTheme.secondaryColor,
-                        width: 2,
-                      ),
-                    ),
-                    child: Center(
-                      child: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: AppTheme.secondaryColor,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                  )
-                else
-                  Container(
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      shape: BoxShape.circle,
-                    ),
+                Container(
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isCompleted
+                        ? AppTheme.secondaryColor
+                        : (isActive ? Colors.white : Colors.white.withOpacity(0.25)),
                   ),
+                  child: Center(
+                    child: isCompleted
+                        ? const Icon(Icons.check, size: 12, color: Color(0xFF1E293B))
+                        : (isActive
+                            ? Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: AppTheme.primaryColor,
+                                ),
+                              )
+                            : null),
+                  ),
+                ),
                 if (!isLast)
                   Expanded(
                     child: Container(
                       width: 2,
-                      color: Colors.white.withOpacity(0.2),
+                      color: isCompleted
+                          ? AppTheme.secondaryColor
+                          : Colors.white.withOpacity(0.2),
                     ),
                   ),
               ],
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.only(bottom: 32),
+              padding: EdgeInsets.only(bottom: isLast ? 0 : 24.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
                     style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: isCompleted || isActive
-                          ? Colors.white
-                          : Colors.white.withOpacity(0.5),
+                      fontSize: 15,
+                      fontWeight: isActive || isCompleted ? FontWeight.bold : FontWeight.w500,
+                      color: isActive || isCompleted ? Colors.white : Colors.white60,
                     ),
                   ),
                   if (subtitle != null) ...[
@@ -311,8 +288,7 @@ class ApplicationReviewScreen extends StatelessWidget {
                       subtitle,
                       style: const TextStyle(
                         fontSize: 12,
-                        color: AppTheme.secondaryColor,
-                        fontWeight: FontWeight.w500,
+                        color: Colors.white70,
                       ),
                     ),
                   ],

@@ -8,6 +8,9 @@ import 'package:yesdhobi_ridervendor/services/rider_auth_service.dart';
 
 import 'package:yesdhobi_ridervendor/screens/front_camera_selfie_screen.dart';
 
+import 'dart:convert';
+import 'package:yesdhobi_ridervendor/services/rider_api_service.dart';
+
 class SelfieConfirmationScreen extends StatelessWidget {
   final String imagePath;
 
@@ -16,9 +19,23 @@ class SelfieConfirmationScreen extends StatelessWidget {
     required this.imagePath,
   });
 
-  void _handleConfirm(BuildContext context) {
-    // Mark selfie as verified
+  void _handleConfirm(BuildContext context) async {
+    // Mark selfie as verified locally
     RiderAuthService.instance.setSelfieVerified(true, imagePath: imagePath);
+
+    // Upload selfie to backend in background
+    try {
+      final file = File(imagePath);
+      if (file.existsSync()) {
+        final bytes = await file.readAsBytes();
+        final base64Image = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+        await RiderApiService.instance.uploadSelfie(base64Image);
+      }
+    } catch (e) {
+      debugPrint('Selfie upload error: $e');
+    }
+
+    if (!context.mounted) return;
 
     // Navigate to Rider Dashboard
     Navigator.pushAndRemoveUntil(
@@ -45,25 +62,9 @@ class SelfieConfirmationScreen extends StatelessWidget {
         backgroundColor: const Color(0xFFF8FAFC),
         elevation: 0,
         leading: const CustomBackButton(),
-        title: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AppLogo(
-              size: 28,
-              borderRadius: 6,
-              iconSize: 18,
-              backgroundColor: AppTheme.primaryColor,
-            ),
-            SizedBox(width: 8),
-            Text(
-              'Yes Dhobi',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF0F172A),
-              ),
-            ),
-          ],
+        title: const YesDhobiLogo(
+          height: 28,
+          variant: LogoVariant.navy,
         ),
         centerTitle: true,
       ),

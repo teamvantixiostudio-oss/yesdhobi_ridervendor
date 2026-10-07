@@ -26,26 +26,12 @@ class _PortalSelectionScreenState extends State<PortalSelectionScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Top Logo
-              const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  AppLogo(
-                    size: 32,
-                    borderRadius: 8,
-                    iconSize: 20,
-                    backgroundColor: AppTheme.primaryColor,
-                  ),
-                  SizedBox(width: 12),
-                  Text(
-                    'Yes Dhobi',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1E293B),
-                    ),
-                  ),
-                ],
+              // Top Official Logo
+              const Center(
+                child: YesDhobiLogo(
+                  height: 34,
+                  variant: LogoVariant.navy,
+                ),
               ),
               const SizedBox(height: 48),
 

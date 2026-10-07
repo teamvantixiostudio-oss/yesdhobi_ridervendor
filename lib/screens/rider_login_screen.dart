@@ -1,6 +1,7 @@
-import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yesdhobi_ridervendor/theme.dart';
 import 'package:yesdhobi_ridervendor/widgets/app_logo.dart';
 import 'package:yesdhobi_ridervendor/widgets/custom_text_field.dart';
@@ -8,9 +9,9 @@ import 'package:yesdhobi_ridervendor/widgets/custom_back_button.dart';
 import 'package:yesdhobi_ridervendor/screens/rider_register_step1_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/rider_dashboard_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/identity_verification_screen.dart';
+import 'package:yesdhobi_ridervendor/screens/application_review_screen.dart';
 import 'package:yesdhobi_ridervendor/services/rider_auth_service.dart';
 import 'package:yesdhobi_ridervendor/utils/registration_validators.dart';
-
 import 'package:yesdhobi_ridervendor/services/rider_api_service.dart';
 
 class RiderLoginScreen extends StatefulWidget {
@@ -27,6 +28,7 @@ class _RiderLoginScreenState extends State<RiderLoginScreen> {
   String? _mobileError;
   String? _passwordError;
   bool _isLoading = false;
+  bool _obscurePassword = true;
 
   @override
   void initState() {
@@ -51,13 +53,14 @@ class _RiderLoginScreenState extends State<RiderLoginScreen> {
 
     if (mobile.isEmpty) {
       mobileErr = 'Please enter registered mobile number';
-    } else if (mobile != '9999999999' &&
-        RegistrationValidators.validateMobileNumber(mobile) != null) {
-      mobileErr = 'Enter a valid 10-digit mobile number';
+    } else {
+      mobileErr = RegistrationValidators.validateMobileNumber(mobile);
     }
 
     if (password.isEmpty) {
       passErr = 'Please enter password';
+    } else if (password.length < 6) {
+      passErr = 'Password must be at least 6 characters';
     }
 
     setState(() {
@@ -66,33 +69,80 @@ class _RiderLoginScreenState extends State<RiderLoginScreen> {
     });
 
     if (mobileErr == null && passErr == null) {
-      if (!Platform.environment.containsKey('FLUTTER_TEST')) {
-        setState(() => _isLoading = true);
-        try {
-          await RiderApiService.instance.riderLogin(mobile, password);
-        } catch (e) {
-          debugPrint('Rider backend auth error: $e');
-        }
+      setState(() => _isLoading = true);
+
+      try {
+        final res = await RiderApiService.instance.riderLogin(mobile, password);
 
         if (!mounted) return;
         setState(() => _isLoading = false);
-      }
 
-      RiderAuthService.instance.login(mobileNumber: mobile);
+        final rider = res['rider'] as Map<String, dynamic>?;
+        final onboardingStatus = (rider?['onboardingStatus']?.toString() ?? 'APPROVED').toUpperCase();
 
-      // Check if selfie verification is already completed
-      if (RiderAuthService.instance.isSelfieVerified) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const RiderDashboardScreen()),
-          (route) => false,
-        );
-      } else {
-        // Required flow: Rider Login -> Identity Verification -> Selfie Confirmation -> Rider Dashboard
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const IdentityVerificationScreen(),
+        if (onboardingStatus == 'UNDER_REVIEW' || onboardingStatus == 'PENDING_REVIEW') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const ApplicationReviewScreen(isVendor: false),
+            ),
+          );
+          return;
+        }
+
+        RiderAuthService.instance.login(mobileNumber: mobile);
+
+        final prefs = await SharedPreferences.getInstance();
+        final isVerifiedLocally = prefs.getBool('rider_selfie_verified') ?? false;
+
+        bool hasServerSelfie = false;
+        final riderProfileRaw = prefs.getString('rider_profile');
+        if (riderProfileRaw != null) {
+          try {
+            final rp = jsonDecode(riderProfileRaw);
+            if (rp['documents'] is Map && rp['documents']['selfie'] != null) {
+              hasServerSelfie = true;
+            }
+          } catch (_) {}
+        }
+        final userRaw = prefs.getString('rider_user');
+        if (userRaw != null) {
+          try {
+            final u = jsonDecode(userRaw);
+            if (u['avatarUrl'] != null && u['avatarUrl'].toString().isNotEmpty) {
+              hasServerSelfie = true;
+            }
+          } catch (_) {}
+        }
+
+        // Check if selfie verification is already completed locally or on server
+        if (!mounted) return;
+        if (isVerifiedLocally || hasServerSelfie || RiderAuthService.instance.isSelfieVerified) {
+          RiderAuthService.instance.setSelfieVerified(true);
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const RiderDashboardScreen()),
+            (route) => false,
+          );
+        } else {
+          // One-time prompt for new riders without verified selfie
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const IdentityVerificationScreen(),
+            ),
+          );
+        }
+      } catch (e) {
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        final err = e.toString().replaceAll('Exception:', '').trim();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(err.isNotEmpty ? err : 'Unable to sign in. Please verify your credentials.'),
+            backgroundColor: const Color(0xFFDC2626),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         );
       }
@@ -103,215 +153,193 @@ class _RiderLoginScreenState extends State<RiderLoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         leading: const CustomBackButton(),
-        title: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AppLogo(
-              size: 28,
-              borderRadius: 6,
-              iconSize: 18,
-              backgroundColor: AppTheme.primaryColor,
-            ),
-            SizedBox(width: 8),
-            Text(
-              'Yes Dhobi',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: Colors.black,
-              ),
-            ),
-          ],
+        title: const YesDhobiLogo(
+          height: 28,
+          variant: LogoVariant.navy,
         ),
         centerTitle: true,
       ),
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight - 32.0,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 12),
+              const Text(
+                'Rider Login',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E293B),
                 ),
-                child: IntrinsicHeight(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Rider Partner Login',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1E293B),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Access your driver portal to view daily earnings and pending laundry orders.',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Color(0xFF64748B),
-                          height: 1.5,
-                        ),
-                      ),
-                      const SizedBox(height: 28),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Enter your registered mobile number and password to access your delivery dashboard',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF64748B),
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 36),
 
-                      CustomTextField(
-                        label: 'Mobile Number',
-                        hint: 'Enter registered number (e.g. 9876543210)',
-                        controller: _mobileController,
-                        errorText: _mobileError,
-                        keyboardType: TextInputType.phone,
-                        maxLength: 10,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                        ],
-                        suffixIcon: Icons.phone_android,
-                        onChanged: (val) {
-                          if (_mobileError != null) {
-                            setState(() {
-                              _mobileError = null;
-                            });
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 20),
+              // Mobile Number Field
+              CustomTextField(
+                label: 'Registered Mobile Number',
+                hint: '98765 43210',
+                controller: _mobileController,
+                errorText: _mobileError,
+                keyboardType: TextInputType.phone,
+                maxLength: 10,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(10),
+                ],
+                onChanged: (val) {
+                  setState(() {
+                    if (val.length == 10) {
+                      _mobileError = RegistrationValidators.validateMobileNumber(val);
+                    } else if (_mobileError != null) {
+                      _mobileError = RegistrationValidators.validateMobileNumber(val);
+                    }
+                  });
+                },
+              ),
+              const SizedBox(height: 20),
 
-                      CustomTextField(
-                        label: 'Password',
-                        hint: 'Partner@123',
-                        controller: _passwordController,
-                        errorText: _passwordError,
-                        suffixIcon: Icons.lock_outline,
-                        isPassword: true,
-                        onChanged: (val) {
-                          if (_passwordError != null) {
-                            setState(() {
-                              _passwordError = null;
-                            });
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 14),
+              // Password Field
+              CustomTextField(
+                label: 'Password',
+                hint: 'Enter your password',
+                controller: _passwordController,
+                errorText: _passwordError,
+                obscureText: _obscurePassword,
+                suffixWidget: IconButton(
+                  icon: Icon(
+                    _obscurePassword
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    color: const Color(0xFF64748B),
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _obscurePassword = !_obscurePassword;
+                    });
+                  },
+                ),
+                onChanged: (val) {
+                  if (_passwordError != null) {
+                    setState(() {
+                      _passwordError = val.isEmpty ? 'Please enter password' : null;
+                    });
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
 
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: TextButton(
-                          style: TextButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: const Text(
-                                    'Password reset link sent to your registered mobile.'),
-                                backgroundColor: AppTheme.primaryColor,
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                              ),
-                            );
-                          },
-                          child: const Text(
-                            'Forgot Password?',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: AppTheme.primaryColor,
-                            ),
-                          ),
-                        ),
+              // Forgot Password Link
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text('Password reset instructions will be sent via SMS to your registered mobile.'),
+                        backgroundColor: AppTheme.primaryColor,
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
-
-                      const Spacer(),
-                      const SizedBox(height: 24),
-
-                      SizedBox(
-                        width: double.infinity,
-                        height: 56,
-                        child: ElevatedButton(
-                          onPressed: _isLoading ? null : _handleLogin,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.primaryColor,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: _isLoading
-                              ? const SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Text(
-                                  'Login to Portal',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      Center(
-                        child: Wrap(
-                          alignment: WrapAlignment.center,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            const Text(
-                              'Become a new partner? ',
-                              style: TextStyle(
-                                color: Color(0xFF64748B),
-                                fontSize: 14,
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => RiderRegisterStep1Screen(
-                                      registrationModel:
-                                          RiderAuthService.instance.registrationModel,
-                                    ),
-                                  ),
-                                );
-                              },
-                              child: const Text(
-                                'Register',
-                                style: TextStyle(
-                                  color: AppTheme.primaryColor,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
+                    );
+                  },
+                  child: const Text(
+                    'Forgot Password?',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.primaryColor,
+                    ),
                   ),
                 ),
               ),
-            );
-          },
+              const SizedBox(height: 24),
+
+              // Login Button
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _handleLogin,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Login',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              // Don't have an account? Register CTA
+              Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      "Don't have an account? ",
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        RiderAuthService.instance.resetForNewRider();
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const RiderRegisterStep1Screen(),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        'Register',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.primaryColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

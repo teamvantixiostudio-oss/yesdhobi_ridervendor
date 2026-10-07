@@ -5,8 +5,19 @@ import 'package:yesdhobi_ridervendor/screens/vendor_order_details_screen.dart';
 import 'package:yesdhobi_ridervendor/services/vendor_order_service.dart';
 import 'package:yesdhobi_ridervendor/widgets/vendor_persistent_otp_banner.dart';
 
-class VendorNewOrdersScreen extends StatelessWidget {
+class VendorNewOrdersScreen extends StatefulWidget {
   const VendorNewOrdersScreen({super.key});
+
+  @override
+  State<VendorNewOrdersScreen> createState() => _VendorNewOrdersScreenState();
+}
+
+class _VendorNewOrdersScreenState extends State<VendorNewOrdersScreen> {
+  @override
+  void initState() {
+    super.initState();
+    VendorOrderService.instance.fetchOrders();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,89 +72,127 @@ class VendorNewOrdersScreen extends StatelessWidget {
                 const VendorPersistentOtpBanner(),
 
                 Expanded(
-                  child: newRequests.isEmpty
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24.0),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.inbox_outlined,
-                                  size: 48,
-                                  color: Colors.grey.shade400,
+                  child: RefreshIndicator(
+                    onRefresh: () => VendorOrderService.instance.fetchOrders(),
+                    child: newRequests.isEmpty
+                        ? ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: [
+                              SizedBox(
+                                  height: MediaQuery.of(context).size.height *
+                                      0.25),
+                              Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.inbox_outlined,
+                                      size: 48,
+                                      color: Colors.grey.shade400,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      'No pending new requests',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        color: Colors.grey.shade600,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'No pending new requests',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    color: Colors.grey.shade600,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                      : ListView.separated(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16.0, vertical: 12.0),
-                          itemCount: newRequests.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 16),
-                          itemBuilder: (context, index) {
-                            final request = newRequests[index];
-                            final isFirst = index == 0;
+                              ),
+                            ],
+                          )
+                        : ListView.separated(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16.0, vertical: 12.0),
+                            itemCount: newRequests.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 16),
+                            itemBuilder: (context, index) {
+                              final request = newRequests[index];
+                              final isFirst = index == 0;
 
-                            return _buildRequestCard(
-                              context: context,
-                              orderId: request.orderId,
-                              receivedTime: 'Received 5m ago',
-                              badgeText: isFirst ? 'URGENT' : 'NEW REQUEST',
-                              badgeBgColor: isFirst
-                                  ? const Color(0xFFFEF2F2)
-                                  : const Color(0xFFFEF3C7),
-                              badgeTextColor: isFirst
-                                  ? const Color(0xFFEF4444)
-                                  : const Color(0xFFD97706),
-                              customerName: request.customerName,
-                              serviceType: request.serviceType,
-                              totalItems: request.itemsDescription,
-                              pickupSlot: 'Today, 05:00 PM',
-                              onAccept: () {
-                                VendorOrderService.instance
-                                    .acceptNewRequest(request);
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => VendorOrderDetailsScreen(
-                                      order: request,
-                                      orderId: request.orderId,
-                                      customerName: request.customerName,
-                                      customerPhone: request.customerPhone,
-                                    ),
-                                  ),
-                                );
-                              },
-                              onReject: () {
-                                VendorOrderService.instance
-                                    .rejectNewRequest(request.orderId);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                        'Order ${request.orderId} rejected.'),
-                                    backgroundColor: const Color(0xFFEF4444),
-                                    behavior: SnackBarBehavior.floating,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        ),
+                              return _buildRequestCard(
+                                context: context,
+                                orderId: request.orderId,
+                                receivedTime: 'Received recently',
+                                badgeText: isFirst ? 'URGENT' : 'NEW REQUEST',
+                                badgeBgColor: isFirst
+                                    ? const Color(0xFFFEF2F2)
+                                    : const Color(0xFFFEF3C7),
+                                badgeTextColor: isFirst
+                                    ? const Color(0xFFEF4444)
+                                    : const Color(0xFFD97706),
+                                customerName: request.customerName,
+                                serviceType: request.serviceType,
+                                totalItems: request.itemsDescription,
+                                pickupSlot: 'Standard Pickup',
+                                onAccept: () async {
+                                  try {
+                                    await VendorOrderService.instance
+                                        .acceptNewRequest(request);
+                                    if (!context.mounted) return;
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            VendorOrderDetailsScreen(
+                                          order: request,
+                                          orderId: request.orderId,
+                                          customerName: request.customerName,
+                                          customerPhone: request.customerPhone,
+                                        ),
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    if (!context.mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content:
+                                            Text('Failed to accept order: $e'),
+                                        backgroundColor:
+                                            const Color(0xFFEF4444),
+                                      ),
+                                    );
+                                  }
+                                },
+                                onReject: () async {
+                                  try {
+                                    await VendorOrderService.instance
+                                        .rejectNewRequest(request.orderId);
+                                    if (!context.mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                            'Order ${request.orderId} rejected.'),
+                                        backgroundColor:
+                                            const Color(0xFFEF4444),
+                                        behavior: SnackBarBehavior.floating,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    if (!context.mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content:
+                                            Text('Failed to reject order: $e'),
+                                        backgroundColor:
+                                            const Color(0xFFEF4444),
+                                      ),
+                                    );
+                                  }
+                                },
+                              );
+                            },
+                          ),
+                  ),
                 ),
               ],
             ),

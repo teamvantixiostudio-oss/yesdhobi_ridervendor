@@ -1,11 +1,94 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yesdhobi_ridervendor/theme.dart';
 import 'package:yesdhobi_ridervendor/services/rider_auth_service.dart';
+import 'package:yesdhobi_ridervendor/services/rider_api_service.dart';
 import 'package:yesdhobi_ridervendor/widgets/app_bottom_nav.dart';
 import 'package:yesdhobi_ridervendor/screens/portal_selection_screen.dart';
 
-class RiderProfileScreen extends StatelessWidget {
+class RiderProfileScreen extends StatefulWidget {
   const RiderProfileScreen({super.key});
+
+  @override
+  State<RiderProfileScreen> createState() => _RiderProfileScreenState();
+}
+
+class _RiderProfileScreenState extends State<RiderProfileScreen> {
+  String _riderName = 'Rider Partner';
+  String _riderPhone = '';
+  String _vehicleType = 'Motorcycle';
+  String _vehicleNumber = '';
+  String? _avatarUrl;
+  String? _localSelfiePath;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileData();
+  }
+
+  Future<void> _loadProfileData() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // 1. Load from local cache first
+    _localSelfiePath = RiderAuthService.instance.selfieImagePath ??
+        prefs.getString('rider_selfie_image_path');
+
+    final userRaw = prefs.getString('rider_user');
+    if (userRaw != null) {
+      try {
+        final u = jsonDecode(userRaw);
+        if (u['name'] != null) _riderName = u['name'].toString();
+        if (u['phone'] != null) _riderPhone = u['phone'].toString();
+        if (u['avatarUrl'] != null) _avatarUrl = u['avatarUrl'].toString();
+      } catch (_) {}
+    }
+
+    final riderRaw = prefs.getString('rider_profile');
+    if (riderRaw != null) {
+      try {
+        final r = jsonDecode(riderRaw);
+        if (r['vehicleNumber'] != null) _vehicleNumber = r['vehicleNumber'].toString();
+        if (r['vehicleType'] != null) _vehicleType = r['vehicleType'].toString();
+        if (_avatarUrl == null && r['documents'] is Map && r['documents']['selfie'] != null) {
+          _avatarUrl = r['documents']['selfie'].toString();
+        }
+      } catch (_) {}
+    }
+
+    final reg = RiderAuthService.instance.registrationModel;
+    if (_riderName == 'Rider Partner' && reg.fullName.isNotEmpty) _riderName = reg.fullName;
+    if (_riderPhone.isEmpty && reg.mobileNumber.isNotEmpty) _riderPhone = reg.mobileNumber;
+    if (_vehicleNumber.isEmpty && reg.vehicleNumber.isNotEmpty) _vehicleNumber = reg.vehicleNumber;
+
+    if (mounted) setState(() {});
+
+    // 2. Fetch fresh profile from backend
+    try {
+      final profile = await RiderApiService.instance.getRiderProfile();
+      if (profile['user'] is Map) {
+        final u = profile['user'];
+        if (u['name'] != null) _riderName = u['name'].toString();
+        if (u['phone'] != null) _riderPhone = u['phone'].toString();
+        if (u['avatarUrl'] != null) _avatarUrl = u['avatarUrl'].toString();
+        await prefs.setString('rider_user', jsonEncode(u));
+      }
+      if (profile['vehicleNumber'] != null) {
+        _vehicleNumber = profile['vehicleNumber'].toString();
+      }
+      if (profile['vehicleType'] != null) {
+        _vehicleType = profile['vehicleType'].toString();
+      }
+      if (_avatarUrl == null && profile['documents'] is Map && profile['documents']['selfie'] != null) {
+        _avatarUrl = profile['documents']['selfie'].toString();
+      }
+      await prefs.setString('rider_profile', jsonEncode(profile));
+
+      if (mounted) setState(() {});
+    } catch (_) {}
+  }
 
   void _handleLogout(BuildContext context) {
     RiderAuthService.instance.logout();
@@ -29,12 +112,55 @@ class RiderProfileScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildAvatarImage() {
+    // 1. Check local selfie file from photo capture
+    if (_localSelfiePath != null && _localSelfiePath!.isNotEmpty) {
+      final file = File(_localSelfiePath!);
+      if (file.existsSync()) {
+        return Image.file(
+          file,
+          width: 84,
+          height: 84,
+          fit: BoxFit.cover,
+        );
+      }
+    }
+
+    // 2. Check server-hosted avatar URL
+    if (_avatarUrl != null && _avatarUrl!.isNotEmpty) {
+      return Image.network(
+        _avatarUrl!,
+        width: 84,
+        height: 84,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _buildDefaultAvatar(),
+      );
+    }
+
+    // 3. Fallback default avatar icon
+    return _buildDefaultAvatar();
+  }
+
+  Widget _buildDefaultAvatar() {
+    return Container(
+      width: 84,
+      height: 84,
+      color: const Color(0xFFE2E8F0),
+      child: const Icon(
+        Icons.person_rounded,
+        size: 54,
+        color: Color(0xFF2563EB),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final reg = RiderAuthService.instance.registrationModel;
-    final riderName = reg.fullName.isNotEmpty ? reg.fullName : 'Zack Colah';
-    final riderPhone = reg.mobileNumber.isNotEmpty ? '+91 ${reg.mobileNumber}' : '+91 98765 43210';
-    final vehicleNumber = reg.vehicleNumber.isNotEmpty ? reg.vehicleNumber : 'DL-3C-AL-9023';
+    final displayName = _riderName.isNotEmpty ? _riderName : 'Rider Partner';
+    final displayPhone = _riderPhone.isNotEmpty
+        ? (_riderPhone.startsWith('+') ? _riderPhone : '+91 $_riderPhone')
+        : '+91 98765 43210';
+    final displayPlate = _vehicleNumber.isNotEmpty ? _vehicleNumber : 'DL-3C-AL-9023';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -134,7 +260,7 @@ class RiderProfileScreen extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    // Avatar with circular border
+                    // Avatar with circular border (Live Selfie Display)
                     Container(
                       width: 90,
                       height: 90,
@@ -148,16 +274,7 @@ class RiderProfileScreen extends StatelessWidget {
                       ),
                       alignment: Alignment.center,
                       child: ClipOval(
-                        child: Container(
-                          width: 84,
-                          height: 84,
-                          color: const Color(0xFFE2E8F0),
-                          child: const Icon(
-                            Icons.person_rounded,
-                            size: 54,
-                            color: Color(0xFF2563EB),
-                          ),
-                        ),
+                        child: _buildAvatarImage(),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -195,7 +312,7 @@ class RiderProfileScreen extends StatelessWidget {
 
                     // Rider Name
                     Text(
-                      riderName,
+                      displayName,
                       style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -206,7 +323,7 @@ class RiderProfileScreen extends StatelessWidget {
 
                     // Phone Number
                     Text(
-                      riderPhone,
+                      displayPhone,
                       style: const TextStyle(
                         fontSize: 14,
                         color: Color(0xFF64748B),
@@ -275,13 +392,13 @@ class RiderProfileScreen extends StatelessWidget {
 
                     _buildInfoRow(
                       label: 'Vehicle Registered',
-                      value: 'Honda Activa 5G (Electric Blue)',
+                      value: _vehicleType,
                     ),
                     const SizedBox(height: 14),
 
                     _buildInfoRow(
                       label: 'Vehicle Number',
-                      value: vehicleNumber,
+                      value: displayPlate,
                     ),
                     const SizedBox(height: 14),
 
@@ -349,13 +466,11 @@ class RiderProfileScreen extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFFEF4444),
                     ),
                   ),
                 ),
               ),
-
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
             ],
           ),
         ),
@@ -371,12 +486,12 @@ class RiderProfileScreen extends StatelessWidget {
           Text(
             value,
             style: const TextStyle(
-              fontSize: 18,
+              fontSize: 17,
               fontWeight: FontWeight.bold,
               color: Color(0xFF0F172A),
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 4),
           Text(
             label,
             style: const TextStyle(
@@ -393,11 +508,10 @@ class RiderProfileScreen extends StatelessWidget {
   Widget _buildInfoRow({
     required String label,
     required String value,
-    Color valueColor = const Color(0xFF0F172A),
+    Color? valueColor,
   }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
@@ -407,16 +521,12 @@ class RiderProfileScreen extends StatelessWidget {
             fontWeight: FontWeight.w500,
           ),
         ),
-        const SizedBox(width: 12),
-        Flexible(
-          child: Text(
-            value,
-            textAlign: TextAlign.right,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: valueColor,
-            ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: valueColor ?? const Color(0xFF0F172A),
           ),
         ),
       ],

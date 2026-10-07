@@ -14,6 +14,7 @@ class RiderRegistrationModel {
   String fullName;
   String mobileNumber;
   String email;
+  String password;
   DateTime? dateOfBirth;
   String? profilePhotoPath;
   int? profilePhotoSize;
@@ -39,6 +40,7 @@ class RiderRegistrationModel {
     this.fullName = '',
     this.mobileNumber = '',
     this.email = '',
+    this.password = '',
     this.dateOfBirth,
     this.profilePhotoPath,
     this.profilePhotoSize,

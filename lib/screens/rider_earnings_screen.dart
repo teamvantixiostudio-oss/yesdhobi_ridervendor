@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:yesdhobi_ridervendor/theme.dart';
 import 'package:yesdhobi_ridervendor/widgets/app_bottom_nav.dart';
+import 'package:yesdhobi_ridervendor/services/rider_api_service.dart';
 
 class TransactionItem {
   final String title;
@@ -23,55 +24,128 @@ class RiderEarningsScreen extends StatefulWidget {
 
 class _RiderEarningsScreenState extends State<RiderEarningsScreen> {
   String selectedPeriod = 'This Week';
+  bool _isLoading = true;
+  bool _isWithdrawing = false;
+  Map<String, dynamic>? _earningsData;
 
-  final List<TransactionItem> transactions = const [
-    TransactionItem(
-      title: 'Pickup: Rahul Sharma',
-      time: 'Today, 10:45 AM',
-      amount: '₹65.00',
-    ),
-    TransactionItem(
-      title: 'Pickup: Anita Desai',
-      time: 'Today, 09:12 AM',
-      amount: '₹80.00',
-    ),
-    TransactionItem(
-      title: 'Pickup: Vijay K',
-      time: 'Yesterday, 06:30 PM',
-      amount: '₹75.00',
-    ),
-    TransactionItem(
-      title: 'Pickup: Zeenat Banu',
-      time: 'Yesterday, 04:15 PM',
-      amount: '₹120.00',
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadEarnings();
+  }
 
-  String get outstandingPayout {
-    switch (selectedPeriod) {
-      case 'Today':
-        return '₹145.00';
-      case 'This Month':
-        return '₹18,420.00';
-      case 'This Week':
-      default:
-        return '₹4,890.00';
+  Future<void> _loadEarnings() async {
+    setState(() => _isLoading = true);
+    try {
+      final res = await RiderApiService.instance.getRiderEarnings();
+      if (mounted) {
+        setState(() {
+          _earningsData = res;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _handleWithdraw() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Withdrawal request of $outstandingPayout submitted to State Bank of India.',
+  String get outstandingPayout {
+    if (_earningsData != null) {
+      if (selectedPeriod == 'Today' && _earningsData!['today'] != null) {
+        final amt = (_earningsData!['today']['amount'] as num?)?.toDouble() ?? 0.0;
+        return '₹${amt.toStringAsFixed(2)}';
+      } else if (selectedPeriod == 'This Month' && _earningsData!['month'] != null) {
+        final amt = (_earningsData!['month']['amount'] as num?)?.toDouble() ?? 0.0;
+        return '₹${amt.toStringAsFixed(2)}';
+      } else {
+        final outstanding = (_earningsData!['outstanding'] as num?)?.toDouble() ??
+            ((_earningsData!['week']?['amount'] as num?)?.toDouble() ?? 0.0);
+        return '₹${outstanding.toStringAsFixed(2)}';
+      }
+    }
+    return '₹0.00';
+  }
+
+  String get bankDisplayName {
+    final bank = _earningsData?['bank'] as Map<String, dynamic>?;
+    final bName = bank?['bankName']?.toString() ?? 'State Bank of India';
+    final acc = bank?['account']?.toString() ?? '•••• 4012';
+    return 'Bank: $bName $acc';
+  }
+
+  List<TransactionItem> get liveTransactions {
+    final list = _earningsData?['transactions'] as List?;
+    if (list != null && list.isNotEmpty) {
+      return list.map((e) {
+        final map = e as Map<String, dynamic>;
+        final cust = map['customerName']?.toString();
+        final orderNum = map['orderNumber']?.toString();
+        final desc = map['description']?.toString() ?? 'Trip Earning';
+        final title = cust != null && cust.isNotEmpty
+            ? 'Trip: $cust'
+            : (orderNum != null ? 'Order #$orderNum' : desc);
+
+        final rawDate = map['createdAt']?.toString();
+        String timeStr = 'Recent';
+        if (rawDate != null) {
+          try {
+            final dt = DateTime.parse(rawDate).toLocal();
+            timeStr = '${dt.day}/${dt.month}/${dt.year} • ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+          } catch (_) {}
+        }
+        final amt = (map['amount'] as num?)?.toDouble() ?? 0.0;
+        return TransactionItem(
+          title: title,
+          time: timeStr,
+          amount: '₹${amt.toStringAsFixed(2)}',
+        );
+      }).toList();
+    }
+    return const [];
+  }
+
+  Future<void> _handleWithdraw() async {
+    final outstanding = (_earningsData?['outstanding'] as num?)?.toDouble() ?? 0.0;
+    if (outstanding <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No outstanding balance available to withdraw at this time.'),
+          backgroundColor: Color(0xFF64748B),
+          behavior: SnackBarBehavior.floating,
         ),
-        backgroundColor: AppTheme.primaryColor,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
+      );
+      return;
+    }
+
+    setState(() => _isWithdrawing = true);
+    try {
+      await RiderApiService.instance.requestPayout(amount: outstanding);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Withdrawal request of ₹${outstanding.toStringAsFixed(2)} submitted successfully to admin.',
+          ),
+          backgroundColor: const Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
-      ),
-    );
+      );
+      await _loadEarnings();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Withdrawal request: ${e.toString().replaceAll('Exception: ', '')}'),
+          backgroundColor: const Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isWithdrawing = false);
+    }
   }
 
   @override
@@ -79,9 +153,13 @@ class _RiderEarningsScreenState extends State<RiderEarningsScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
-          child: Column(
+        child: RefreshIndicator(
+          onRefresh: _loadEarnings,
+          color: AppTheme.primaryColor,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Top Brand Header
@@ -184,7 +262,7 @@ class _RiderEarningsScreenState extends State<RiderEarningsScreen> {
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF2563EB).withOpacity(0.3),
+                      color: const Color(0xFF2563EB).withValues(alpha: 0.3),
                       blurRadius: 16,
                       offset: const Offset(0, 8),
                     ),
@@ -198,7 +276,7 @@ class _RiderEarningsScreenState extends State<RiderEarningsScreen> {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white.withOpacity(0.85),
+                        color: Colors.white.withValues(alpha: 0.85),
                         letterSpacing: 0.5,
                       ),
                     ),
@@ -215,7 +293,7 @@ class _RiderEarningsScreenState extends State<RiderEarningsScreen> {
                     const SizedBox(height: 18),
                     Divider(
                       height: 1,
-                      color: Colors.white.withOpacity(0.25),
+                      color: Colors.white.withValues(alpha: 0.25),
                     ),
                     const SizedBox(height: 14),
                     Row(
@@ -223,11 +301,11 @@ class _RiderEarningsScreenState extends State<RiderEarningsScreen> {
                       children: [
                         Flexible(
                           child: Text(
-                            'Bank: State Bank of India • • • • 4012',
+                            bankDisplayName,
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                             ),
                           ),
                         ),
@@ -261,7 +339,7 @@ class _RiderEarningsScreenState extends State<RiderEarningsScreen> {
                 width: double.infinity,
                 height: 54,
                 child: ElevatedButton(
-                  onPressed: _handleWithdraw,
+                  onPressed: _isWithdrawing ? null : _handleWithdraw,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFFBBF24),
                     foregroundColor: const Color(0xFF0F172A),
@@ -270,14 +348,23 @@ class _RiderEarningsScreenState extends State<RiderEarningsScreen> {
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  child: const Text(
-                    'Withdraw to Bank Account',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF0F172A),
-                    ),
-                  ),
+                  child: _isWithdrawing
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Color(0xFF0F172A),
+                          ),
+                        )
+                      : const Text(
+                          'Withdraw to Bank Account',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(height: 24),
@@ -294,13 +381,51 @@ class _RiderEarningsScreenState extends State<RiderEarningsScreen> {
               const SizedBox(height: 14),
 
               // Transactions List
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: transactions.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
-                itemBuilder: (ctx, index) {
-                  final tx = transactions[index];
+              if (_isLoading)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(32.0),
+                    child: CircularProgressIndicator(color: AppTheme.primaryColor),
+                  ),
+                )
+              else if (liveTransactions.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFF1F5F9)),
+                  ),
+                  child: Column(
+                    children: const [
+                      Icon(Icons.receipt_long_rounded, size: 36, color: Color(0xFF94A3B8)),
+                      SizedBox(height: 8),
+                      Text(
+                        'No transactions yet',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Complete pickup and delivery orders to start earning payouts.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: liveTransactions.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
+                  itemBuilder: (ctx, index) {
+                    final tx = liveTransactions[index];
                   return Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 16, vertical: 14),
@@ -310,7 +435,7 @@ class _RiderEarningsScreenState extends State<RiderEarningsScreen> {
                       border: Border.all(color: const Color(0xFFF1F5F9)),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.02),
+                          color: Colors.black.withValues(alpha: 0.02),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -360,6 +485,7 @@ class _RiderEarningsScreenState extends State<RiderEarningsScreen> {
             ],
           ),
         ),
+      ),
       ),
       bottomNavigationBar: const AppBottomNav(currentIndex: 2),
     );
