@@ -7,6 +7,7 @@ import 'package:yesdhobi_ridervendor/widgets/otp_input.dart';
 import 'package:yesdhobi_ridervendor/widgets/vendor_card.dart';
 import 'package:yesdhobi_ridervendor/widgets/app_bottom_nav.dart';
 import 'package:yesdhobi_ridervendor/screens/dropoff_confirmed_screen.dart';
+import 'package:yesdhobi_ridervendor/screens/rider_order_details_screen.dart';
 import 'package:yesdhobi_ridervendor/services/vendor_order_service.dart';
 import 'package:yesdhobi_ridervendor/services/rider_api_service.dart';
 
@@ -124,20 +125,43 @@ class _ConfirmVendorDropoffScreenState
       return;
     }
 
-    _state.stage = DeliveryStage.delivered;
-    _state.vendorOtp = _otp;
-    _state.dropoffTime = _clockTime(DateTime.now());
+    final isHandover = _state.isDeliveryLeg || _state.rawStatus == 'READY';
+    if (isHandover) {
+      _state.stage = DeliveryStage.outForDrop;
+      _state.rawStatus = 'OUT_FOR_DELIVERY';
+      _state.vendorOtp = _otp;
 
-    // Mark completed in VendorOrderService and dismiss OTP banner
-    VendorOrderService.instance.verifyOtpAndCompleteOrder(_state.orderId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Order collected from partner shop! Proceed to customer delivery.'),
+          backgroundColor: const Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RiderOrderDetailsScreen(orderState: _state),
+        ),
+      );
+    } else {
+      _state.stage = DeliveryStage.delivered;
+      _state.vendorOtp = _otp;
+      _state.dropoffTime = _clockTime(DateTime.now());
 
-    if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => DropoffConfirmedScreen(orderState: _state),
-      ),
-    );
+      // Mark completed in VendorOrderService and dismiss OTP banner
+      VendorOrderService.instance.verifyOtpAndCompleteOrder(_state.orderId);
+
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => DropoffConfirmedScreen(orderState: _state),
+        ),
+      );
+    }
   }
 
   /// 12-hour clock without touching BuildContext after an await.
@@ -155,6 +179,8 @@ class _ConfirmVendorDropoffScreenState
 
   @override
   Widget build(BuildContext context) {
+    final bool isHandover = _state.isDeliveryLeg || _state.rawStatus == 'READY';
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
@@ -168,15 +194,15 @@ class _ConfirmVendorDropoffScreenState
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEEF2FF),
+                  color: isHandover ? const Color(0xFFECFDF5) : const Color(0xFFEEF2FF),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Text(
-                  'DROP OFF',
+                child: Text(
+                  isHandover ? 'COLLECTION' : 'DROP OFF',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: AppTheme.primaryColor,
+                    color: isHandover ? const Color(0xFF10B981) : AppTheme.primaryColor,
                     letterSpacing: 0.5,
                   ),
                 ),
@@ -192,9 +218,9 @@ class _ConfirmVendorDropoffScreenState
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header Titles
-              const Text(
-                'Confirm Vendor Drop-off',
-                style: TextStyle(
+              Text(
+                isHandover ? 'Confirm Order Collection' : 'Confirm Vendor Drop-off',
+                style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF0F172A),
@@ -202,7 +228,7 @@ class _ConfirmVendorDropoffScreenState
               ),
               const SizedBox(height: 4),
               Text(
-                'Order #YD-9612',
+                'Order ${_state.orderId}',
                 style: const TextStyle(
                   fontSize: 14,
                   color: Color(0xFF64748B),
@@ -210,18 +236,18 @@ class _ConfirmVendorDropoffScreenState
               ),
               const SizedBox(height: 20),
 
-              // Drop-off Vendor Card
+              // Drop-off / Collection Vendor Card
               VendorCard(
-                sectionTitle: 'DROP-OFF VENDOR',
-                vendorName: 'Star Bright Laundry',
-                rating: 4.9,
-                tag: 'Professional Partner',
-                address: 'Shop No. 12, Sector 15, HSR Layout, Bengaluru',
+                sectionTitle: isHandover ? 'LAUNDRY PARTNER SHOP' : 'DROP-OFF VENDOR',
+                vendorName: _state.vendorName.isNotEmpty ? _state.vendorName : 'Star Bright Laundry',
+                rating: _state.vendorRating > 0 ? _state.vendorRating : 4.9,
+                tag: _state.vendorTag.isNotEmpty ? _state.vendorTag : 'Professional Partner',
+                address: _state.vendorAddress.isNotEmpty ? _state.vendorAddress : 'Shop No. 12, Sector 15, HSR Layout, Bengaluru',
                 useStorefrontIcon: true,
                 onCallTap: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: const Text('Calling Star Bright Laundry...'),
+                      content: Text('Calling ${_state.vendorName.isNotEmpty ? _state.vendorName : "Partner Shop"}...'),
                       behavior: SnackBarBehavior.floating,
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10)),
@@ -248,18 +274,20 @@ class _ConfirmVendorDropoffScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Enter Vendor OTP',
-                      style: TextStyle(
+                    Text(
+                      isHandover ? 'Enter Handover OTP' : 'Enter Vendor Drop-off OTP',
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF0F172A),
                       ),
                     ),
                     const SizedBox(height: 6),
-                    const Text(
-                      'Ask the vendor for the 4-digit OTP to confirm clothes handover',
-                      style: TextStyle(
+                    Text(
+                      isHandover
+                          ? 'Ask the partner shop for the 4-digit Handover OTP to collect packaged clothes'
+                          : 'Ask the vendor for the 4-digit OTP to confirm clothes drop-off',
+                      style: const TextStyle(
                         fontSize: 14,
                         color: Color(0xFF64748B),
                         height: 1.4,
@@ -336,9 +364,9 @@ class _ConfirmVendorDropoffScreenState
                       borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-                  child: const Text(
-                    'Verify & Confirm Drop-off',
-                    style: TextStyle(
+                  child: Text(
+                    isHandover ? 'Verify & Collect Order' : 'Verify & Confirm Drop-off',
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),

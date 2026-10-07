@@ -168,6 +168,19 @@ class VendorOrderService {
         }
       } catch (_) {}
 
+      // Auto-set active OTP order for banner if not already set or completed
+      if (activeOtpOrder.value == null || activeOtpOrder.value!.isCompleted) {
+        try {
+          final withOtp = _orders.firstWhere(
+            (o) => !o.isCompleted && (o.dropoffOtp.isNotEmpty || o.handoverOtp.isNotEmpty),
+          );
+          activeOtpOrder.value = withOtp;
+        } catch (_) {
+          if (_orders.isNotEmpty && !_orders.first.isCompleted) {
+            activeOtpOrder.value = _orders.first;
+          }
+        }
+      }
     } catch (e) {
       debugPrint('Error fetching vendor orders: $e');
     } finally {

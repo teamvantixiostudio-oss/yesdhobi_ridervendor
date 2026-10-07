@@ -317,6 +317,10 @@ class _VendorOrderDetailsScreenState extends State<VendorOrderDetailsScreen> {
               ),
               const SizedBox(height: 16),
 
+              // Prominent OTP Card for Vendor (Drop-off or Handover)
+              _buildVendorOtpCard(),
+              const SizedBox(height: 16),
+
               // Order Items List Card
               Container(
                 padding: const EdgeInsets.all(16),
@@ -554,10 +558,10 @@ class _VendorOrderDetailsScreenState extends State<VendorOrderDetailsScreen> {
                   ),
                   child: Text(
                     _order.isRiderBooked
-                        ? 'Rider Assigned • View Pickup OTP (${_order.pickupOtp})'
+                        ? 'Rider Assigned • View Handover OTP (${_order.handoverOtp.isNotEmpty ? _order.handoverOtp : _order.pickupOtp})'
                         : (_order.isPackaged
                             ? 'Packed • Assign Rider'
-                            : 'Mark as Packed'),
+                            : 'Mark as Packed & Assign Rider'),
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -569,6 +573,140 @@ class _VendorOrderDetailsScreenState extends State<VendorOrderDetailsScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildVendorOtpCard() {
+    final status = _order.status;
+    final isIncoming = status == 'PENDING_PICKUP' || status == 'ASSIGNED' || status == 'PICKED_UP';
+    final isDelivery = status == 'READY' || status == 'OUT_FOR_DELIVERY' || _order.isRiderBooked;
+
+    if (!isIncoming && !isDelivery) {
+      // In laundry processing stage (WASHING, IRONING, QUALITY_CHECK, etc.)
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFF2563EB).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.local_laundry_service_rounded,
+                color: Color(0xFF2563EB),
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Laundry Processing in Progress',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Tap stages below or click "Mark as Packed & Assign Rider" when ready.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final String otp = isIncoming
+        ? (_order.dropoffOtp.isNotEmpty ? _order.dropoffOtp : _order.pickupOtp)
+        : (_order.handoverOtp.isNotEmpty ? _order.handoverOtp : _order.pickupOtp);
+
+    final String cardTitle = isIncoming ? 'INCOMING RIDER DROP-OFF OTP' : 'DELIVERY RIDER HANDOVER OTP';
+    final String cardSubtitle = isIncoming
+        ? 'Share this 4-digit OTP with the pickup rider when they deliver clothes to your shop.'
+        : 'Share this 4-digit OTP with ${_order.assignedRiderName ?? "the delivery rider"} when handing over clean packaged clothes.';
+    final Color primaryColor = isIncoming ? const Color(0xFF2563EB) : const Color(0xFF059669);
+    final IconData icon = isIncoming ? Icons.storefront_rounded : Icons.delivery_dining_rounded;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: primaryColor,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withOpacity(0.25),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: Colors.white70, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                cardTitle,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white.withOpacity(0.9),
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.18),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              otp.split('').join('   '),
+              style: const TextStyle(
+                fontSize: 30,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+                letterSpacing: 4.0,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            cardSubtitle,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.white.withOpacity(0.9),
+              height: 1.35,
+            ),
+          ),
+        ],
       ),
     );
   }

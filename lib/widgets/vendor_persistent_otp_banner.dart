@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:yesdhobi_ridervendor/models/vendor_order_model.dart';
 import 'package:yesdhobi_ridervendor/services/vendor_order_service.dart';
 import 'package:yesdhobi_ridervendor/screens/vendor_rider_booked_screen.dart';
+import 'package:yesdhobi_ridervendor/screens/vendor_order_details_screen.dart';
 
 class VendorPersistentOtpBanner extends StatelessWidget {
   const VendorPersistentOtpBanner({super.key});
@@ -14,6 +15,20 @@ class VendorPersistentOtpBanner extends StatelessWidget {
         if (activeOrder == null) {
           return const SizedBox.shrink();
         }
+
+        final status = activeOrder.status;
+        final bool isIncoming = status == 'PENDING_PICKUP' || status == 'ASSIGNED' || status == 'PICKED_UP';
+        final String otpTitle = isIncoming ? 'DROP-OFF OTP' : 'HANDOVER OTP';
+        final String otpCode = isIncoming
+            ? (activeOrder.dropoffOtp.isNotEmpty ? activeOrder.dropoffOtp : activeOrder.pickupOtp)
+            : (activeOrder.handoverOtp.isNotEmpty ? activeOrder.handoverOtp : activeOrder.pickupOtp);
+        final String statusText = isIncoming
+            ? '${activeOrder.orderId} • Incoming Drop-off'
+            : '${activeOrder.orderId} • Delivery Rider Assigned';
+        final String subText = isIncoming
+            ? 'Rider dropping customer clothes'
+            : 'Rider: ${activeOrder.assignedRiderName ?? "Assigned Partner"}';
+        final Color themeColor = isIncoming ? const Color(0xFF2563EB) : const Color(0xFF10B981);
 
         return Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -32,12 +47,24 @@ class VendorPersistentOtpBanner extends StatelessWidget {
             color: Colors.transparent,
             child: InkWell(
               onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => VendorRiderBookedScreen(order: activeOrder),
-                  ),
-                );
+                if (activeOrder.isRiderBooked) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => VendorRiderBookedScreen(order: activeOrder),
+                    ),
+                  );
+                } else {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => VendorOrderDetailsScreen(
+                        order: activeOrder,
+                        orderId: activeOrder.orderId,
+                      ),
+                    ),
+                  );
+                }
               },
               borderRadius: BorderRadius.circular(16),
               child: Padding(
@@ -49,12 +76,12 @@ class VendorPersistentOtpBanner extends StatelessWidget {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF2563EB).withOpacity(0.2),
+                        color: themeColor.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(
-                        Icons.delivery_dining_rounded,
-                        color: Color(0xFF60A5FA),
+                      child: Icon(
+                        isIncoming ? Icons.storefront_rounded : Icons.delivery_dining_rounded,
+                        color: isIncoming ? const Color(0xFF60A5FA) : const Color(0xFF34D399),
                         size: 22,
                       ),
                     ),
@@ -71,25 +98,31 @@ class VendorPersistentOtpBanner extends StatelessWidget {
                               Container(
                                 width: 7,
                                 height: 7,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFF10B981),
+                                decoration: BoxDecoration(
+                                  color: themeColor,
                                   shape: BoxShape.circle,
                                 ),
                               ),
                               const SizedBox(width: 6),
-                              Text(
-                                '${activeOrder.orderId} • Rider Assigned',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
+                              Expanded(
+                                child: Text(
+                                  statusText,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
                             ],
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Rider: ${activeOrder.assignedRiderName ?? "Zack Colah"}',
+                            subText,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: Color(0xFF94A3B8),
                               fontSize: 11,
@@ -104,15 +137,15 @@ class VendorPersistentOtpBanner extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF2563EB),
+                        color: themeColor,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Text(
-                            'PICKUP OTP',
-                            style: TextStyle(
+                          Text(
+                            otpTitle,
+                            style: const TextStyle(
                               fontSize: 9,
                               fontWeight: FontWeight.bold,
                               color: Colors.white70,
@@ -121,7 +154,7 @@ class VendorPersistentOtpBanner extends StatelessWidget {
                           ),
                           const SizedBox(height: 1),
                           Text(
-                            activeOrder.pickupOtp,
+                            otpCode,
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w900,

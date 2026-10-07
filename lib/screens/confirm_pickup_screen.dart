@@ -6,6 +6,7 @@ import 'package:yesdhobi_ridervendor/widgets/custom_back_button.dart';
 import 'package:yesdhobi_ridervendor/widgets/otp_input.dart';
 import 'package:yesdhobi_ridervendor/widgets/app_bottom_nav.dart';
 import 'package:yesdhobi_ridervendor/screens/order_status_screen.dart';
+import 'package:yesdhobi_ridervendor/screens/dropoff_confirmed_screen.dart';
 import 'package:yesdhobi_ridervendor/services/rider_api_service.dart';
 
 class ConfirmPickupScreen extends StatefulWidget {
@@ -132,19 +133,31 @@ class _ConfirmPickupScreenState extends State<ConfirmPickupScreen> {
       return;
     }
 
-    // Update order status
-    widget.orderState.stage = DeliveryStage.outForDrop;
-    widget.orderState.customerOtp = _otp;
+    final bool isDeliveryLeg = widget.orderState.isDeliveryLeg || widget.orderState.rawStatus == 'OUT_FOR_DELIVERY';
+    if (isDeliveryLeg) {
+      widget.orderState.stage = DeliveryStage.delivered;
+      widget.orderState.rawStatus = 'DELIVERED';
+      widget.orderState.customerOtp = _otp;
 
-    if (!mounted) return;
-    // Replace, not push: leaving this screen on the stack let the rider walk
-    // back to a live Confirm button and submit the same OTP a second time.
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => OrderStatusScreen(orderState: widget.orderState),
-      ),
-    );
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => DropoffConfirmedScreen(orderState: widget.orderState),
+        ),
+      );
+    } else {
+      widget.orderState.stage = DeliveryStage.outForDrop;
+      widget.orderState.customerOtp = _otp;
+
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => OrderStatusScreen(orderState: widget.orderState),
+        ),
+      );
+    }
   }
 
   String get _formattedCountdown {
@@ -155,15 +168,17 @@ class _ConfirmPickupScreenState extends State<ConfirmPickupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDeliveryLeg = widget.orderState.isDeliveryLeg || widget.orderState.rawStatus == 'OUT_FOR_DELIVERY';
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         leading: const CustomBackButton(),
-        title: const Text(
-          'Confirm Pickup',
-          style: TextStyle(
+        title: Text(
+          isDeliveryLeg ? 'Confirm Delivery' : 'Confirm Pickup',
+          style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
             color: Color(0xFF0F172A),
@@ -187,16 +202,16 @@ class _ConfirmPickupScreenState extends State<ConfirmPickupScreen> {
                       child: Container(
                         width: 120,
                         height: 120,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFEEF2FF),
+                        decoration: BoxDecoration(
+                          color: isDeliveryLeg ? const Color(0xFFECFDF5) : const Color(0xFFEEF2FF),
                           shape: BoxShape.circle,
                         ),
                         alignment: Alignment.center,
                         child: Container(
                           width: 80,
                           height: 80,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFDBEAFE),
+                          decoration: BoxDecoration(
+                            color: isDeliveryLeg ? const Color(0xFFD1FAE5) : const Color(0xFFDBEAFE),
                             shape: BoxShape.circle,
                           ),
                           alignment: Alignment.center,
@@ -206,13 +221,13 @@ class _ConfirmPickupScreenState extends State<ConfirmPickupScreen> {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: const Color(0xFF3B82F6),
+                                color: isDeliveryLeg ? const Color(0xFF10B981) : const Color(0xFF3B82F6),
                                 width: 2.5,
                               ),
                             ),
-                            child: const Icon(
-                              Icons.close_rounded,
-                              color: Color(0xFF3B82F6),
+                            child: Icon(
+                              isDeliveryLeg ? Icons.check_circle_outline_rounded : Icons.lock_outline_rounded,
+                              color: isDeliveryLeg ? const Color(0xFF10B981) : const Color(0xFF3B82F6),
                               size: 26,
                             ),
                           ),
@@ -222,10 +237,10 @@ class _ConfirmPickupScreenState extends State<ConfirmPickupScreen> {
                     const SizedBox(height: 32),
 
                     // Heading
-                    const Text(
-                      'Enter Pickup Confirmation OTP',
+                    Text(
+                      isDeliveryLeg ? 'Enter Delivery Confirmation OTP' : 'Enter Pickup Confirmation OTP',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF0F172A),
@@ -235,12 +250,14 @@ class _ConfirmPickupScreenState extends State<ConfirmPickupScreen> {
                     const SizedBox(height: 10),
 
                     // Description
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16.0),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
                       child: Text(
-                        'Please enter the 4-digit OTP shared by the customer to confirm pickup',
+                        isDeliveryLeg
+                            ? 'Please enter the 4-digit OTP shared by the customer to complete delivery'
+                            : 'Please enter the 4-digit OTP shared by the customer to confirm pickup',
                         textAlign: TextAlign.center,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 14,
                           color: Color(0xFF64748B),
                           height: 1.45,
@@ -316,9 +333,9 @@ class _ConfirmPickupScreenState extends State<ConfirmPickupScreen> {
                       borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-                  child: const Text(
-                    'Verify & Confirm Pickup',
-                    style: TextStyle(
+                  child: Text(
+                    isDeliveryLeg ? 'Verify & Complete Delivery' : 'Verify & Confirm Pickup',
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),

@@ -39,6 +39,9 @@ class DropoffConfirmedScreen extends StatelessWidget {
     final dropoffTime =
         state.dropoffTime.isNotEmpty ? state.dropoffTime : '10:45 AM';
 
+    final bool isCustomerDelivered = state.rawStatus == 'DELIVERED' ||
+        (state.isDeliveryLeg && state.stage == DeliveryStage.delivered);
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
@@ -97,9 +100,9 @@ class DropoffConfirmedScreen extends StatelessWidget {
                       const SizedBox(height: 24),
 
                       // Title
-                      const Text(
-                        'Drop-off Confirmed!',
-                        style: TextStyle(
+                      Text(
+                        isCustomerDelivered ? 'Delivery Completed!' : 'Drop-off Confirmed!',
+                        style: const TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
                           color: Color(0xFF0F172A),
@@ -111,7 +114,9 @@ class DropoffConfirmedScreen extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         child: Text(
-                          'Clothes have been successfully handed over to $vendorName',
+                          isCustomerDelivered
+                              ? 'Clean clothes have been successfully delivered to $customerName'
+                              : 'Clothes have been successfully handed over to $vendorName',
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             fontSize: 14,
@@ -139,9 +144,9 @@ class DropoffConfirmedScreen extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'HANDOVER SUMMARY',
-                              style: TextStyle(
+                            Text(
+                              isCustomerDelivered ? 'DELIVERY SUMMARY' : 'HANDOVER SUMMARY',
+                              style: const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
                                 color: Color(0xFF94A3B8),
@@ -163,11 +168,13 @@ class DropoffConfirmedScreen extends StatelessWidget {
                             ),
                             const Divider(height: 24, color: Color(0xFFF1F5F9)),
 
-                            _buildSummaryRow(
-                              label: 'Vendor',
-                              value: vendorName,
-                            ),
-                            const Divider(height: 24, color: Color(0xFFF1F5F9)),
+                            if (!isCustomerDelivered) ...[
+                              _buildSummaryRow(
+                                label: 'Partner Shop',
+                                value: vendorName,
+                              ),
+                              const Divider(height: 24, color: Color(0xFFF1F5F9)),
+                            ],
 
                             _buildSummaryRow(
                               label: 'Items',
@@ -176,7 +183,7 @@ class DropoffConfirmedScreen extends StatelessWidget {
                             const Divider(height: 24, color: Color(0xFFF1F5F9)),
 
                             _buildSummaryRow(
-                              label: 'Drop-off Time',
+                              label: isCustomerDelivered ? 'Delivery Time' : 'Drop-off Time',
                               value: dropoffTime,
                             ),
                           ],
