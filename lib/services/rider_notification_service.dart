@@ -233,12 +233,37 @@ class RiderNotificationService with WidgetsBindingObserver {
       } catch (_) {}
     }
 
-    try {
-      if (request.requestId.isNotEmpty && !request.requestId.startsWith('sample') && !request.requestId.startsWith('REQ-')) {
+    // The server is the only thing that decides who owns this order. If the
+    // accept is refused - another rider got there first, or the 15 second
+    // window ran out - we must NOT carry on into the pickup flow. Swallowing
+    // the error here used to take the rider to a job the server had already
+    // given to someone else: they would walk to the customer, and then every
+    // OTP step afterwards failed because they were not the assigned rider.
+    final isRealRequest = request.requestId.isNotEmpty &&
+        !request.requestId.startsWith('sample') &&
+        !request.requestId.startsWith('REQ-');
+    if (isRealRequest) {
+      try {
         await RiderApiService.instance.acceptRequest(request.requestId);
+      } catch (e) {
+        debugPrint('Accept refused by backend: $e');
+        request.status = PickupRequestStatus.expired;
+        final message = e.toString().replaceAll('Exception:', '').trim();
+        final ctx = context ?? navigatorKey.currentContext;
+        if (ctx != null && ctx.mounted) {
+          ScaffoldMessenger.of(ctx).showSnackBar(
+            SnackBar(
+              content: Text(message.isEmpty
+                  ? 'That request is no longer available.'
+                  : message),
+              backgroundColor: const Color(0xFFDC2626),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+        }
+        return;
       }
-    } catch (e) {
-      debugPrint('Error accepting request on backend: $e');
     }
 
     final orderState = request.toOrderFlowState();

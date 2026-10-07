@@ -4,14 +4,69 @@ import 'package:yesdhobi_ridervendor/theme.dart';
 import 'package:yesdhobi_ridervendor/widgets/app_logo.dart';
 import 'package:yesdhobi_ridervendor/screens/rider_login_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/vendor_login_screen.dart';
+import 'package:yesdhobi_ridervendor/services/rider_api_service.dart';
 
-class ApplicationReviewScreen extends StatelessWidget {
+class ApplicationReviewScreen extends StatefulWidget {
   final bool isVendor;
 
   const ApplicationReviewScreen({
     super.key,
     this.isVendor = false,
   });
+
+  @override
+  State<ApplicationReviewScreen> createState() => _ApplicationReviewScreenState();
+}
+
+class _ApplicationReviewScreenState extends State<ApplicationReviewScreen> {
+  /// This screen used to say "Application Under Review" no matter what the
+  /// admin had actually decided, so a rejected rider saw the same waiting
+  /// screen and assumed they had been let in. It now asks the server.
+  bool _rejected = false;
+  bool _approved = false;
+  String? _serverMessage;
+  String? _rejectionReason;
+
+  bool get isVendor => widget.isVendor;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!isVendor) _loadStatus();
+  }
+
+  Future<void> _loadStatus() async {
+    try {
+      final res = await RiderApiService.instance.getOnboardingStatus();
+      if (!mounted) return;
+      setState(() {
+        _rejected = res['rejected'] == true;
+        _approved = res['canWork'] == true;
+        _serverMessage = res['message']?.toString();
+        _rejectionReason = res['rejectionReason']?.toString();
+      });
+    } catch (e) {
+      // leave the waiting state as it is; the rider can pull again by reopening
+      debugPrint('Could not read onboarding status: $e');
+    }
+  }
+
+  String get _title {
+    if (_rejected) return 'Application Not Approved';
+    if (_approved) return 'You Are Verified';
+    return isVendor ? 'Shop Application Under Review' : 'Application Under Review';
+  }
+
+  String get _subtitle {
+    if (_rejected) {
+      final reason = (_rejectionReason == null || _rejectionReason!.isEmpty) ? '' : '\n\nReason: $_rejectionReason';
+      return '${_serverMessage ?? 'Your proposal has been rejected. Please try again after 24 hours.'}$reason';
+    }
+    if (_approved) return _serverMessage ?? 'You are verified. Log in and go online to start receiving pickup requests.';
+    return isVendor
+        ? 'Thank you for registering on yesdhobi.com. Your laundry shop details are being verified by Yes Dhobi Admin. You will be able to access the portal once activated in the Admin Portal.'
+        : 'Thank you for registering. Our team is verifying your documents and vehicle details.';
+  }
 
   Future<void> _makePhoneCall(BuildContext context, String phoneNumber) async {
     final Uri launchUri = Uri(
@@ -90,7 +145,7 @@ class ApplicationReviewScreen extends StatelessWidget {
                           const SizedBox(height: 36),
 
                           Text(
-                            isVendor ? 'Shop Application Under Review' : 'Application Under Review',
+                            _title,
                             style: const TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
@@ -99,9 +154,7 @@ class ApplicationReviewScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 10),
                           Text(
-                            isVendor
-                                ? 'Thank you for registering on yesdhobi.com. Your laundry shop details are being verified by Yes Dhobi Admin. You will be able to access the portal once activated in the Admin Portal.'
-                                : 'Thank you for registering. Our team is verifying your documents and vehicle details.',
+                            _subtitle,
                             style: const TextStyle(
                               fontSize: 14,
                               color: Colors.white70,
