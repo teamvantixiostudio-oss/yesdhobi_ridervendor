@@ -29,6 +29,8 @@ class _ConfirmVendorDropoffScreenState
   String _otp = '';
   int _countdownSeconds = 28;
   Timer? _timer;
+  // See confirm_pickup_screen: one submit per tap, and never twice.
+  bool _submitting = false;
 
   @override
   void initState() {
@@ -82,6 +84,7 @@ class _ConfirmVendorDropoffScreenState
   }
 
   Future<void> _verifyAndConfirm() async {
+    if (_submitting) return;
     if (_otp.length < 4) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -95,6 +98,7 @@ class _ConfirmVendorDropoffScreenState
     }
 
     final targetId = _state.rawOrderId ?? _state.orderId.replaceAll('#', '').replaceAll('YD-', '');
+    setState(() => _submitting = true);
     try {
       if (_state.isDeliveryLeg || _state.rawStatus == 'READY') {
         await RiderApiService.instance.confirmHandover(targetId, _otp);
@@ -102,31 +106,31 @@ class _ConfirmVendorDropoffScreenState
         await RiderApiService.instance.confirmDropoff(targetId, _otp);
       }
     } catch (e) {
-      debugPrint('Dropoff OTP confirmation note: $e');
+      // The handoff was not recorded, so do not advance the rider.
+      debugPrint('Dropoff OTP confirmation failed: $e');
+      if (!mounted) return;
+      setState(() => _submitting = false);
       final err = e.toString().replaceAll('Exception:', '').trim();
-      if (err.toLowerCase().contains('incorrect') || err.toLowerCase().contains('otp')) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(err),
-            backgroundColor: const Color(0xFFDC2626),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
-        return;
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(err.isEmpty ? 'Could not confirm the handover. Please try again.' : err),
+          backgroundColor: const Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+      return;
     }
 
     _state.stage = DeliveryStage.delivered;
     _state.vendorOtp = _otp;
-    _state.dropoffTime = '10:45 AM';
+    _state.dropoffTime = TimeOfDay.now().format(context);
 
     // Mark completed in VendorOrderService and dismiss OTP banner
     VendorOrderService.instance.verifyOtpAndCompleteOrder(_state.orderId);
 
     if (!mounted) return;
-    Navigator.push(
+    Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (_) => DropoffConfirmedScreen(orderState: _state),
@@ -314,7 +318,7 @@ class _ConfirmVendorDropoffScreenState
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: _verifyAndConfirm,
+                  onPressed: _submitting ? null : _verifyAndConfirm,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryColor,
                     foregroundColor: Colors.white,

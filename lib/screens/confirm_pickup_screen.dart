@@ -24,6 +24,10 @@ class _ConfirmPickupScreenState extends State<ConfirmPickupScreen> {
   String _otp = '';
   int _countdownSeconds = 28;
   Timer? _timer;
+  // Stops a second tap (or an impatient double tap) firing the same OTP again.
+  // Two confirmations used to put the order through the flow twice and leave
+  // the app a step ahead of the server.
+  bool _submitting = false;
 
   @override
   void initState() {
@@ -68,6 +72,7 @@ class _ConfirmPickupScreenState extends State<ConfirmPickupScreen> {
   }
 
   Future<void> _verifyAndProceed() async {
+    if (_submitting) return;
     if (_otp.length < 4) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -81,6 +86,7 @@ class _ConfirmPickupScreenState extends State<ConfirmPickupScreen> {
     }
 
     final targetId = widget.orderState.rawOrderId ?? widget.orderState.orderId.replaceAll('#', '').replaceAll('YD-', '');
+    setState(() => _submitting = true);
     try {
       if (widget.orderState.isDeliveryLeg || widget.orderState.rawStatus == 'OUT_FOR_DELIVERY') {
         await RiderApiService.instance.confirmDelivery(targetId, _otp, collectedCash: true);
@@ -105,20 +111,23 @@ class _ConfirmPickupScreenState extends State<ConfirmPickupScreen> {
         }
       }
     } catch (e) {
-      debugPrint('Pickup OTP confirmation note: $e');
+      // Any failure here means the server did NOT record the pickup, so we must
+      // not move the rider on. Previously only OTP errors were surfaced and
+      // everything else fell through to the navigation below, which is how a
+      // rejected second attempt still pushed the flow forward.
+      debugPrint('Pickup OTP confirmation failed: $e');
+      if (!mounted) return;
+      setState(() => _submitting = false);
       final err = e.toString().replaceAll('Exception:', '').trim();
-      if (err.toLowerCase().contains('incorrect') || err.toLowerCase().contains('otp')) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(err),
-            backgroundColor: const Color(0xFFDC2626),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
-        return;
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(err.isEmpty ? 'Could not confirm the pickup. Please try again.' : err),
+          backgroundColor: const Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+      return;
     }
 
     // Update order status
@@ -126,8 +135,9 @@ class _ConfirmPickupScreenState extends State<ConfirmPickupScreen> {
     widget.orderState.customerOtp = _otp;
 
     if (!mounted) return;
-    // Navigate to Order Status Screen
-    Navigator.push(
+    // Replace, not push: leaving this screen on the stack let the rider walk
+    // back to a live Confirm button and submit the same OTP a second time.
+    Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (_) => OrderStatusScreen(orderState: widget.orderState),
@@ -295,7 +305,7 @@ class _ConfirmPickupScreenState extends State<ConfirmPickupScreen> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: _verifyAndProceed,
+                  onPressed: _submitting ? null : _verifyAndProceed,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF10B981),
                     foregroundColor: Colors.white,
