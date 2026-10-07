@@ -6,6 +6,8 @@ import 'package:yesdhobi_ridervendor/screens/vendor_order_details_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/vendor_services_rates_screen.dart';
 import 'package:yesdhobi_ridervendor/services/vendor_order_service.dart';
 import 'package:yesdhobi_ridervendor/widgets/vendor_persistent_otp_banner.dart';
+import 'package:yesdhobi_ridervendor/screens/vendor_new_orders_screen.dart';
+import 'package:yesdhobi_ridervendor/models/vendor_order_model.dart';
 import 'package:yesdhobi_ridervendor/screens/portal_selection_screen.dart';
 
 class VendorHomeScreen extends StatefulWidget {
@@ -272,7 +274,17 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
+
+                  // Urgent New Orders Alert Banner if any pending
+                  if (service.newRequests.isNotEmpty) ...[
+                    _buildNewRequestsBanner(
+                      context,
+                      service.newRequests.first,
+                      service.newRequestsCount,
+                    ),
+                    const SizedBox(height: 18),
+                  ],
 
                   // Today's Performance Section
                   const Text(
@@ -293,6 +305,14 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
                           title: 'New Orders',
                           value: '${service.newRequestsCount}',
                           valueColor: const Color(0xFFEF4444),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const VendorNewOrdersScreen(),
+                              ),
+                            );
+                          },
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -301,6 +321,14 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
                           title: 'In Progress',
                           value: '${service.inProgressCount}',
                           valueColor: const Color(0xFF2563EB),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const VendorActiveOrdersScreen(),
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ],
@@ -313,6 +341,14 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
                           title: 'Ready for Pickup',
                           value: '${service.readyCount}',
                           valueColor: const Color(0xFF10B981),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const VendorActiveOrdersScreen(),
+                              ),
+                            );
+                          },
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -321,6 +357,14 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
                           title: 'Completed',
                           value: '${service.completedCount}',
                           valueColor: const Color(0xFF10B981),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const VendorActiveOrdersScreen(),
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ],
@@ -506,46 +550,164 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
     );
   }
 
-  Widget _buildPerformanceCard({
-    required String title,
-    required String value,
-    required Color valueColor,
-  }) {
+  Widget _buildNewRequestsBanner(
+    BuildContext context,
+    VendorOrderModel req,
+    int count,
+  ) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFFFEF2F2),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        border: Border.all(color: const Color(0xFFF87171), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: const Color(0xFFEF4444).withOpacity(0.12),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: Color(0xFF64748B),
-            ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFEF4444),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.notifications_active_rounded,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  count > 1 ? '$count NEW ORDER REQUESTS WAITING!' : 'NEW ORDER REQUEST RECEIVED!',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFB91C1C),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 10),
           Text(
-            value,
-            style: TextStyle(
-              fontSize: 26,
+            '${req.orderId} · ${req.customerName} (${req.serviceType})',
+            style: const TextStyle(
+              fontSize: 15,
               fontWeight: FontWeight.bold,
-              color: valueColor,
+              color: Color(0xFF0F172A),
             ),
           ),
+          const SizedBox(height: 4),
+          Text(
+            req.itemsDescription,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color(0xFF475569),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const VendorNewOrdersScreen(),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEF4444),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                  child: const Text(
+                    'VIEW & ACCEPT REQUEST',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPerformanceCard({
+    required String title,
+    required String value,
+    required Color valueColor,
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFF1F5F9)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.02),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+                if (onTap != null)
+                  const Icon(Icons.chevron_right_rounded, size: 16, color: Color(0xFF94A3B8)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.bold,
+                color: valueColor,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

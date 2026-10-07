@@ -85,7 +85,9 @@ class _ConfirmPickupScreenState extends State<ConfirmPickupScreen> {
       return;
     }
 
-    final targetId = widget.orderState.rawOrderId ?? widget.orderState.orderId.replaceAll('#', '').replaceAll('YD-', '');
+    final targetId = (widget.orderState.rawOrderId != null && widget.orderState.rawOrderId!.isNotEmpty)
+        ? widget.orderState.rawOrderId!
+        : widget.orderState.orderId.replaceFirst('#', '');
     setState(() => _submitting = true);
     try {
       if (widget.orderState.isDeliveryLeg || widget.orderState.rawStatus == 'OUT_FOR_DELIVERY') {

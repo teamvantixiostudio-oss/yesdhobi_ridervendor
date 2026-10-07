@@ -189,7 +189,9 @@ class VendorOrderService {
   }
 
   Future<void> acceptNewRequest(VendorOrderModel order) async {
-    final targetId = order.rawId ?? order.orderId.replaceAll('#', '').replaceAll('YD-', '');
+    final targetId = (order.rawId != null && order.rawId!.isNotEmpty)
+        ? order.rawId!
+        : order.orderId.replaceFirst('#', '');
     try {
       await _client.post('/vendors/me/orders/$targetId/accept', {});
     } catch (e) {
@@ -206,7 +208,9 @@ class VendorOrderService {
 
   Future<void> rejectNewRequest(String orderId, {String? reason}) async {
     final order = getOrderById(orderId);
-    final targetId = order?.rawId ?? orderId.replaceAll('#', '').replaceAll('YD-', '');
+    final targetId = (order?.rawId != null && order!.rawId!.isNotEmpty)
+        ? order.rawId!
+        : orderId.replaceFirst('#', '');
     try {
       await _client.post('/vendors/me/orders/$targetId/reject', {
         if (reason != null && reason.isNotEmpty) 'reason': reason,
@@ -222,7 +226,9 @@ class VendorOrderService {
 
   Future<VendorOrderModel> markAsPackagedAndAssignRider(VendorOrderModel order) async {
     VendorOrderModel target = getOrderById(order.orderId) ?? order;
-    final targetId = target.rawId ?? target.orderId.replaceAll('#', '').replaceAll('YD-', '');
+    final targetId = (target.rawId != null && target.rawId!.isNotEmpty)
+        ? target.rawId!
+        : target.orderId.replaceFirst('#', '');
 
     try {
       // Transition to READY and broadcast delivery request to riders
@@ -248,7 +254,9 @@ class VendorOrderService {
 
   Future<void> updateOrderStatus(String orderId, String status) async {
     final order = getOrderById(orderId);
-    final targetId = order?.rawId ?? orderId.replaceAll('#', '').replaceAll('YD-', '');
+    final targetId = (order?.rawId != null && order!.rawId!.isNotEmpty)
+        ? order.rawId!
+        : orderId.replaceFirst('#', '');
     await _client.post('/vendors/me/orders/$targetId/status', {'status': status});
     await fetchOrders();
   }

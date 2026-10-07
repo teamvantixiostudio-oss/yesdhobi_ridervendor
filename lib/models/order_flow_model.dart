@@ -101,7 +101,10 @@ class OrderFlowState {
 
   factory OrderFlowState.fromApiJson(Map<String, dynamic> json) {
     final rawId = json['id']?.toString() ?? '';
-    final orderNum = json['orderNumber'] != null ? '#YD-${json['orderNumber']}' : (rawId.length > 8 ? '#YD-${rawId.substring(0, 8)}' : '#YD-$rawId');
+    final rawNum = json['orderNumber']?.toString() ?? '';
+    final orderNum = rawNum.isNotEmpty
+        ? (rawNum.startsWith('#') ? rawNum : (rawNum.startsWith('YD-') ? '#$rawNum' : '#YD-$rawNum'))
+        : (rawId.isNotEmpty ? '#YD-${rawId.length > 8 ? rawId.substring(0, 8) : rawId}' : '#YD-10001');
     final customer = json['customer'] as Map<String, dynamic>?;
     final custUser = customer?['user'] as Map<String, dynamic>?;
     final custName = custUser?['name']?.toString() ?? json['customerName']?.toString() ?? 'Customer';
@@ -149,7 +152,7 @@ class OrderFlowState {
 
     return OrderFlowState(
       orderId: orderNum,
-      rawOrderId: rawId,
+      rawOrderId: rawId.isNotEmpty ? rawId : (rawNum.isNotEmpty ? rawNum : null),
       customerName: custName,
       customerAddress: custAddr,
       customerPhone: custPhone,

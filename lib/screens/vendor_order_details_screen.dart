@@ -702,7 +702,9 @@ class _VendorOrderDetailsScreenState extends State<VendorOrderDetailsScreen> {
       ),
       onPressed: () async {
         try {
-          final id = _order.rawId ?? _order.orderId.replaceAll('#', '').replaceAll('YD-', '');
+          final id = (_order.rawId != null && _order.rawId!.isNotEmpty)
+              ? _order.rawId!
+              : _order.orderId.replaceFirst('#', '');
           await VendorOrderService.instance.updateOrderStatus(id, targetStatus);
           setState(() {
             _order.status = targetStatus;

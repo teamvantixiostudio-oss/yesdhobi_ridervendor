@@ -97,7 +97,9 @@ class _ConfirmVendorDropoffScreenState
       return;
     }
 
-    final targetId = _state.rawOrderId ?? _state.orderId.replaceAll('#', '').replaceAll('YD-', '');
+    final targetId = (_state.rawOrderId != null && _state.rawOrderId!.isNotEmpty)
+        ? _state.rawOrderId!
+        : _state.orderId.replaceFirst('#', '');
     setState(() => _submitting = true);
     try {
       if (_state.isDeliveryLeg || _state.rawStatus == 'READY') {

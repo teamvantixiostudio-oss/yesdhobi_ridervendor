@@ -11,6 +11,7 @@ enum PickupRequestStatus {
 class PickupRequestNotificationModel {
   final String requestId;
   final String orderId;
+  final String? rawOrderId;
   final String customerName;
   final String customerType;
   final String customerTag;
@@ -31,6 +32,7 @@ class PickupRequestNotificationModel {
   PickupRequestNotificationModel({
     required this.requestId,
     required this.orderId,
+    this.rawOrderId,
     required this.customerName,
     this.customerType = 'Regular Customer',
     this.customerTag = 'VIP',
@@ -68,6 +70,7 @@ class PickupRequestNotificationModel {
   OrderFlowState toOrderFlowState() {
     return OrderFlowState(
       orderId: orderId,
+      rawOrderId: rawOrderId,
       customerName: customerName,
       customerAddress: fullAddress,
       pickupLatitude: pickupLatitude,
@@ -117,6 +120,7 @@ class PickupRequestNotificationModel {
     return PickupRequestNotificationModel(
       requestId: 'REQ-9624',
       orderId: '#YD-9624',
+      rawOrderId: '9624',
       customerName: 'Sneha Kapoor',
       customerType: 'Regular Customer',
       customerTag: 'VIP',
@@ -141,13 +145,16 @@ class PickupRequestNotificationModel {
       expDate = DateTime.tryParse(json['expiresAt'].toString());
     }
 
-    final ordNum = json['orderNumber']?.toString();
-    final ordId = json['orderId']?.toString() ?? '';
-    final displayId = ordNum != null ? '#YD-$ordNum' : (ordId.isNotEmpty ? '#YD-$ordId' : '#YD-10001');
+    final rawOrdId = json['orderId']?.toString() ?? json['id']?.toString() ?? '';
+    final rawNum = json['orderNumber']?.toString() ?? '';
+    final displayId = rawNum.isNotEmpty
+        ? (rawNum.startsWith('#') ? rawNum : (rawNum.startsWith('YD-') ? '#$rawNum' : '#YD-$rawNum'))
+        : (rawOrdId.isNotEmpty ? (rawOrdId.startsWith('#') ? rawOrdId : '#YD-$rawOrdId') : '#YD-10001');
 
     return PickupRequestNotificationModel(
       requestId: json['requestId']?.toString() ?? '',
       orderId: displayId,
+      rawOrderId: rawOrdId.isNotEmpty ? rawOrdId : (rawNum.isNotEmpty ? rawNum : null),
       customerName: json['customerName']?.toString() ?? 'Customer',
       customerType: json['customerTier']?.toString() ?? 'Standard Customer',
       customerTag: json['leg'] == 'DELIVERY' ? 'Delivery Leg' : 'Pickup Leg',

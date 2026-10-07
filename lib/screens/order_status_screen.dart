@@ -44,8 +44,9 @@ class _OrderStatusScreenState extends State<OrderStatusScreen> {
   }
 
   Future<void> _fetchFreshOrderDetails() async {
-    final rawId = _state.rawOrderId ??
-        _state.orderId.replaceAll('#', '').replaceAll('YD-', '');
+    final rawId = (_state.rawOrderId != null && _state.rawOrderId!.isNotEmpty)
+        ? _state.rawOrderId!
+        : _state.orderId.replaceFirst('#', '');
     if (rawId.isNotEmpty) {
       try {
         final orderData =

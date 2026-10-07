@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:yesdhobi_ridervendor/models/pickup_request_notification_model.dart';
+import 'package:yesdhobi_ridervendor/models/order_flow_model.dart';
 import 'package:yesdhobi_ridervendor/screens/rider_order_details_screen.dart';
 import 'package:yesdhobi_ridervendor/services/rider_auth_service.dart';
 import 'package:yesdhobi_ridervendor/services/rider_api_service.dart';
@@ -239,12 +240,16 @@ class RiderNotificationService with WidgetsBindingObserver {
     // the error here used to take the rider to a job the server had already
     // given to someone else: they would walk to the customer, and then every
     // OTP step afterwards failed because they were not the assigned rider.
+    OrderFlowState orderState = request.toOrderFlowState();
     final isRealRequest = request.requestId.isNotEmpty &&
         !request.requestId.startsWith('sample') &&
         !request.requestId.startsWith('REQ-');
     if (isRealRequest) {
       try {
-        await RiderApiService.instance.acceptRequest(request.requestId);
+        final orderRes = await RiderApiService.instance.acceptRequest(request.requestId);
+        if (orderRes.isNotEmpty && (orderRes.containsKey('id') || orderRes.containsKey('orderNumber'))) {
+          orderState = OrderFlowState.fromApiJson(orderRes);
+        }
       } catch (e) {
         debugPrint('Accept refused by backend: $e');
         request.status = PickupRequestStatus.expired;
@@ -265,8 +270,6 @@ class RiderNotificationService with WidgetsBindingObserver {
         return;
       }
     }
-
-    final orderState = request.toOrderFlowState();
 
     navigatorKey.currentState?.push(
       MaterialPageRoute(
