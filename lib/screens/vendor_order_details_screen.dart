@@ -3,6 +3,7 @@ import 'package:yesdhobi_ridervendor/widgets/custom_back_button.dart';
 import 'package:yesdhobi_ridervendor/models/vendor_order_model.dart';
 import 'package:yesdhobi_ridervendor/services/vendor_order_service.dart';
 import 'package:yesdhobi_ridervendor/screens/vendor_rider_booked_screen.dart';
+import 'package:yesdhobi_ridervendor/screens/order_chat_screen.dart';
 
 class VendorOrderDetailsScreen extends StatefulWidget {
   final VendorOrderModel? order;
@@ -218,6 +219,37 @@ class _VendorOrderDetailsScreenState extends State<VendorOrderDetailsScreen> {
     );
   }
 
+  /// Opens the thread with one party on this order.
+  Widget _chatChip({
+    required IconData icon,
+    required String label,
+    required String party,
+    required String partyLabel,
+  }) {
+    final id = (_order.rawId != null && _order.rawId!.isNotEmpty)
+        ? _order.rawId!
+        : _order.orderId.replaceAll('#', '').trim();
+    return OutlinedButton.icon(
+      onPressed: id.isEmpty
+          ? null
+          : () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => OrderChatScreen(orderId: id, party: party, partyLabel: partyLabel),
+                ),
+              ),
+      icon: Icon(icon, size: 15),
+      label: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+      style: OutlinedButton.styleFrom(
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        foregroundColor: const Color(0xFF2563EB),
+        side: const BorderSide(color: Color(0xFFE2E8F0)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -295,6 +327,28 @@ class _VendorOrderDetailsScreenState extends State<VendorOrderDetailsScreen> {
                               fontSize: 13,
                               color: Color(0xFF64748B),
                             ),
+                          ),
+                          const SizedBox(height: 8),
+                          // Message the customer or the rider about this order.
+                          // Calling lives inside the chat screen, where the
+                          // number comes from the server and is only real
+                          // while a call makes sense at this stage.
+                          Row(
+                            children: [
+                              _chatChip(
+                                icon: Icons.chat_bubble_outline,
+                                label: 'Customer',
+                                party: 'customer',
+                                partyLabel: 'Customer',
+                              ),
+                              const SizedBox(width: 8),
+                              _chatChip(
+                                icon: Icons.delivery_dining_outlined,
+                                label: 'Rider',
+                                party: 'rider',
+                                partyLabel: 'Rider',
+                              ),
+                            ],
                           ),
                         ],
                       ),

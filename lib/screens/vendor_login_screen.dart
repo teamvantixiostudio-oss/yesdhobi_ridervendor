@@ -40,8 +40,14 @@ class _VendorLoginScreenState extends State<VendorLoginScreen> {
     String? mobileErr;
     String? passErr;
 
+    // Either identifier is fine: the Registration ID from the onboarding
+    // confirmation screen, or the mobile the shop registered with.
     if (mobile.isEmpty) {
-      mobileErr = 'Please enter registered mobile number';
+      mobileErr = 'Enter your Registration ID or registered mobile number';
+    } else if (VendorOrderService.looksLikeRegistrationId(mobile)) {
+      mobileErr = null;
+    } else if (RegExp(r'^[A-Za-z]').hasMatch(mobile)) {
+      mobileErr = 'Registration IDs look like VD100008';
     } else {
       mobileErr = RegistrationValidators.validateMobileNumber(mobile);
     }
@@ -278,18 +284,15 @@ class _VendorLoginScreenState extends State<VendorLoginScreen> {
               ),
               const SizedBox(height: 32),
 
-              // Mobile Number Field
+              // Registration ID or registered mobile
               CustomTextField(
-                label: 'Registered Mobile Number',
-                hint: '91234 56789',
+                label: 'Registration ID or Mobile Number',
+                hint: 'VD100008 or 91234 56789',
                 controller: _mobileController,
                 errorText: _mobileError,
-                keyboardType: TextInputType.phone,
-                maxLength: 10,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(10),
-                ],
+                keyboardType: TextInputType.text,
+                maxLength: 20,
+                inputFormatters: const [],
                 onChanged: (val) {
                   setState(() {
                     if (val.length == 10) {

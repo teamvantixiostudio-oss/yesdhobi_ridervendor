@@ -8,6 +8,7 @@ import 'package:yesdhobi_ridervendor/screens/confirm_pickup_screen.dart';
 import 'package:yesdhobi_ridervendor/widgets/custom_back_button.dart';
 import 'package:yesdhobi_ridervendor/widgets/app_bottom_nav.dart';
 import 'package:yesdhobi_ridervendor/services/rider_api_service.dart';
+import 'package:yesdhobi_ridervendor/screens/order_chat_screen.dart';
 
 class RiderOrderDetailsScreen extends StatelessWidget {
   final OrderFlowState? orderState;
@@ -358,6 +359,7 @@ class RiderOrderDetailsScreen extends StatelessWidget {
 
               // Action Buttons
               _ArrivedButton(state: state),
+              _ContactRow(state: state),
               SizedBox(
                 width: double.infinity,
                 height: 56,
@@ -691,6 +693,79 @@ class _ArrivedButtonState extends State<_ArrivedButton> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Message the customer or the laundry partner about this order.
+///
+/// Each opens its own thread - the server keeps them apart, so what the rider
+/// says to the shop is never visible to the customer. Calling lives inside the
+/// chat screen, where the number comes from the server and is only real while
+/// a call makes sense for this stage of the order.
+class _ContactRow extends StatelessWidget {
+  final OrderFlowState state;
+
+  const _ContactRow({required this.state});
+
+  String? get _orderId {
+    final raw = state.rawOrderId;
+    if (raw != null && raw.isNotEmpty) return raw;
+    final display = state.orderId.replaceAll('#', '').trim();
+    return display.isEmpty ? null : display;
+  }
+
+  void _open(BuildContext context, String party, String label) {
+    final id = _orderId;
+    if (id == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OrderChatScreen(orderId: id, party: party, partyLabel: label),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_orderId == null) return const SizedBox.shrink();
+    final hasVendor = state.vendorName.trim().isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: () => _open(context, 'customer', 'Customer'),
+              icon: const Icon(Icons.chat_bubble_outline, size: 18),
+              label: const Text('Customer'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                foregroundColor: AppTheme.primaryColor,
+                side: const BorderSide(color: Color(0xFFE2E8F0)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          if (hasVendor) ...[
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => _open(context, 'vendor', 'Laundry partner'),
+                icon: const Icon(Icons.storefront_outlined, size: 18),
+                label: const Text('Shop'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                  foregroundColor: AppTheme.primaryColor,
+                  side: const BorderSide(color: Color(0xFFE2E8F0)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

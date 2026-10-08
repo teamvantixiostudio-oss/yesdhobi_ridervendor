@@ -91,12 +91,18 @@ class VendorOrderService {
 
   // ---- Auth ----
 
-  Future<Map<String, dynamic>> vendorLogin(String phone, String password) async {
-    final tenDigits = _cleanPhone(phone);
-    final res = await _client.post('/auth/vendor/login', {
-      'phone': tenDigits,
-      'password': password,
-    });
+  /// Partners sign in with the Registration ID issued at onboarding
+  /// (VD100008) or with their registered mobile number. The server takes one
+  /// or the other - never both - so pick based on what was typed.
+  static bool looksLikeRegistrationId(String value) =>
+      RegExp(r'^VD\d{4,}$', caseSensitive: false).hasMatch(value.trim());
+
+  Future<Map<String, dynamic>> vendorLogin(String identifier, String password) async {
+    final trimmed = identifier.trim();
+    final body = looksLikeRegistrationId(trimmed)
+        ? {'registrationId': trimmed.toUpperCase(), 'password': password}
+        : {'phone': _cleanPhone(trimmed), 'password': password};
+    final res = await _client.post('/auth/vendor/login', body);
 
     if (res.containsKey('accessToken')) {
       await _client.setTokens(
