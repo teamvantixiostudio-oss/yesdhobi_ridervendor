@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:yesdhobi_ridervendor/models/pickup_request_notification_model.dart';
@@ -6,6 +7,7 @@ import 'package:yesdhobi_ridervendor/models/order_flow_model.dart';
 import 'package:yesdhobi_ridervendor/screens/rider_order_details_screen.dart';
 import 'package:yesdhobi_ridervendor/services/rider_auth_service.dart';
 import 'package:yesdhobi_ridervendor/services/rider_api_service.dart';
+import 'package:yesdhobi_ridervendor/widgets/incoming_pickup_request_dialog.dart';
 
 class RiderNotificationService with WidgetsBindingObserver {
   static final RiderNotificationService _instance =
@@ -24,6 +26,7 @@ class RiderNotificationService with WidgetsBindingObserver {
   final Set<String> _processedRequestIds = {};
   AppLifecycleState _lifecycleState = AppLifecycleState.resumed;
   bool _isInitialized = false;
+  bool _isDialogOpen = false;
   Timer? _pollingTimer;
 
   bool get isAppForeground => _lifecycleState == AppLifecycleState.resumed;
@@ -102,13 +105,30 @@ class RiderNotificationService with WidgetsBindingObserver {
       return;
     }
 
-    // Default tap or Accept Action -> Accept and Open Order Request
-    acceptPickupRequest(request);
+    if (actionId == 'accept_pickup') {
+      acceptPickupRequest(request);
+      return;
+    }
+
+    // Default tap on the notification:
+    // Interrupts current screen and shows the big screen popup dialog!
+    showIncomingDialogGlobally(request);
   }
 
   @pragma('vm:entry-point')
   static void _notificationTapBackground(NotificationResponse response) {
     // Handled on app wakeup
+  }
+
+  void showIncomingDialogGlobally(PickupRequestNotificationModel request) {
+    if (_isDialogOpen) return;
+    final ctx = navigatorKey.currentContext;
+    if (ctx != null && ctx.mounted) {
+      _isDialogOpen = true;
+      IncomingPickupRequestDialog.show(ctx, request: request).then((_) {
+        _isDialogOpen = false;
+      });
+    }
   }
 
   Future<void> triggerIncomingPickup(
@@ -130,6 +150,9 @@ class RiderNotificationService with WidgetsBindingObserver {
 
     // Show native system/lock-screen notification
     await _showNativeSystemNotification(request);
+
+    // Global in-app big screen interrupt dialog
+    showIncomingDialogGlobally(request);
   }
 
   Future<void> _showNativeSystemNotification(
@@ -148,6 +171,9 @@ class RiderNotificationService with WidgetsBindingObserver {
       fullScreenIntent: true,
       playSound: true,
       enableVibration: true,
+      category: AndroidNotificationCategory.call,
+      vibrationPattern: Int64List.fromList([0, 600, 250, 600]),
+      color: const Color(0xFF2563EB),
       actions: const <AndroidNotificationAction>[
         AndroidNotificationAction(
           'accept_pickup',

@@ -8,7 +8,6 @@ import 'package:yesdhobi_ridervendor/screens/rider_order_details_screen.dart';
 import 'package:yesdhobi_ridervendor/services/rider_auth_service.dart';
 import 'package:yesdhobi_ridervendor/models/pickup_request_notification_model.dart';
 import 'package:yesdhobi_ridervendor/services/rider_notification_service.dart';
-import 'package:yesdhobi_ridervendor/widgets/incoming_pickup_request_dialog.dart';
 import 'package:yesdhobi_ridervendor/services/rider_api_service.dart';
 import 'package:yesdhobi_ridervendor/models/order_flow_model.dart';
 import 'package:yesdhobi_ridervendor/screens/portal_selection_screen.dart';
@@ -24,6 +23,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     with WidgetsBindingObserver {
   bool get isOnline => RiderAuthService.instance.isOnline;
   List<Map<String, dynamic>> _activeOrders = [];
+  List<Map<String, dynamic>> _pickupHistory = [];
   double _todayEarnings = 0.0;
   int _completedCount = 0;
   bool _isLoading = false;
@@ -76,6 +76,13 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     }
 
     try {
+      final historyRes = await RiderApiService.instance.getRiderOrders(status: 'history');
+      _pickupHistory = List<Map<String, dynamic>>.from(historyRes);
+    } catch (e) {
+      debugPrint('Error loading rider pickup history: $e');
+    }
+
+    try {
       final earningsRes = await RiderApiService.instance.getRiderEarnings();
       if (earningsRes['today'] != null && earningsRes['today']['amount'] != null) {
         _todayEarnings = (earningsRes['today']['amount'] as num).toDouble();
@@ -98,7 +105,7 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
     if (req != null &&
         req.status == PickupRequestStatus.offered &&
         mounted) {
-      IncomingPickupRequestDialog.show(context, request: req);
+      RiderNotificationService.instance.showIncomingDialogGlobally(req);
     }
   }
 
@@ -663,10 +670,10 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
               const SizedBox(height: 32),
               
               // Pickup History
-              const Row(
+              Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
+                  const Text(
                     'Pickup History',
                     style: TextStyle(
                       fontSize: 18,
@@ -674,41 +681,146 @@ class _RiderDashboardScreenState extends State<RiderDashboardScreen>
                       color: Color(0xFF1E293B),
                     ),
                   ),
-                  Text(
-                    'Refresh',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.primaryColor,
+                  GestureDetector(
+                    onTap: _loadDashboardData,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEEF2FF),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.refresh_rounded, size: 14, color: AppTheme.primaryColor),
+                          SizedBox(width: 4),
+                          Text(
+                            'Refresh',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.primaryColor,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
               
-              _buildHistoryCard(
-                name: 'Rahul Sharma',
-                address: 'B-402, Shanti Vihar, Sector 45',
-                items: '12-15 items',
-                timeInfo: 'Completed: 14 Mar • 10:42 AM',
-                amount: '₹120',
-              ),
-              const SizedBox(height: 16),
-              _buildHistoryCard(
-                name: 'Priya Patel',
-                address: 'Flat 12A, Royal Crest Towers, HSR',
-                items: '8-10 items',
-                timeInfo: 'Completed: 14 Mar • 11:15 AM',
-                amount: '₹95',
-              ),
-              const SizedBox(height: 16),
-              _buildHistoryCard(
-                name: 'Amit Verma',
-                address: 'No. 45, Ground Floor, 5th Cross, Indiranagar',
-                items: '20+ items',
-                timeInfo: 'Completed: 13 Mar • 6:20 PM',
-                amount: '₹185',
-              ),
+              if (_pickupHistory.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.history_rounded, color: Color(0xFF94A3B8), size: 24),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'No completed pickups yet',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Accept incoming orders to complete pickups and view your live history here.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                ..._pickupHistory.map((item) {
+                  final cust = item['customer'] as Map<String, dynamic>?;
+                  final custUser = cust?['user'] as Map<String, dynamic>?;
+                  final name = custUser?['name']?.toString() ??
+                      cust?['name']?.toString() ??
+                      item['customerName']?.toString() ??
+                      'Customer';
+
+                  final addr = item['address'] as Map<String, dynamic>?;
+                  final address = addr != null
+                      ? [addr['line'], addr['line1'], addr['city']]
+                          .where((s) => s != null && s.toString().isNotEmpty)
+                          .join(', ')
+                      : (item['addressLine']?.toString() ?? 'Customer Address');
+
+                  final itemsCount = item['itemsCount'] ??
+                      (item['items'] is List ? (item['items'] as List).length : 1);
+                  final itemsText = '$itemsCount items';
+
+                  // Format timestamp
+                  final rawTime = item['deliveredAt'] ??
+                      item['pickedUpAt'] ??
+                      item['updatedAt'] ??
+                      item['createdAt'];
+                  String timeFormatted = 'Completed recently';
+                  if (rawTime != null) {
+                    try {
+                      final dt = DateTime.parse(rawTime.toString()).toLocal();
+                      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                      final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+                      final ampm = dt.hour >= 12 ? 'PM' : 'AM';
+                      final minute = dt.minute.toString().padLeft(2, '0');
+                      timeFormatted = 'Completed: ${dt.day} ${months[dt.month - 1]} • $hour:$minute $ampm';
+                    } catch (_) {}
+                  }
+
+                  // Amount / Payout
+                  final rawAmt = item['payout'] ??
+                      item['pricing']?['deliveryFee'] ??
+                      item['deliveryFee'] ??
+                      item['amount'] ??
+                      item['total'] ??
+                      60;
+                  final amtText = '₹$rawAmt';
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16.0),
+                    child: InkWell(
+                      onTap: () {
+                        try {
+                          final orderState = OrderFlowState.fromApiJson(item);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => RiderOrderDetailsScreen(orderState: orderState),
+                            ),
+                          );
+                        } catch (_) {}
+                      },
+                      borderRadius: BorderRadius.circular(16),
+                      child: _buildHistoryCard(
+                        name: name,
+                        address: address,
+                        items: itemsText,
+                        timeInfo: timeFormatted,
+                        amount: amtText,
+                      ),
+                    ),
+                  );
+                }),
               const SizedBox(height: 32),
             ],
           ),

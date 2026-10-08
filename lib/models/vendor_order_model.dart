@@ -25,6 +25,8 @@ class VendorOrderModel {
   String handoverOtp;
   String status;
   final List<Map<String, dynamic>> itemsList;
+  final double totalAmount;
+  final int remainingSeconds;
 
   VendorOrderModel({
     required this.orderId,
@@ -53,6 +55,8 @@ class VendorOrderModel {
     this.handoverOtp = '',
     this.status = 'IN_LAUNDRY',
     this.itemsList = const [],
+    this.totalAmount = 0.0,
+    this.remainingSeconds = 30,
   }) : customerInitials = customerInitials ??
             (customerName.isNotEmpty
                 ? customerName
@@ -102,6 +106,10 @@ class VendorOrderModel {
         ? (handOtp.isNotEmpty ? handOtp : dropOtp)
         : (dropOtp.isNotEmpty ? dropOtp : handOtp);
 
+    final rawAmount = json['pricing']?['total'] ?? json['total'] ?? json['amount'] ?? json['payout'] ?? 0;
+    final parsedAmount = (rawAmount is num) ? rawAmount.toDouble() : double.tryParse(rawAmount.toString()) ?? 0.0;
+    final remSecs = (json['offer']?['remainingSeconds'] as num?)?.toInt() ?? 30;
+
     return VendorOrderModel(
       orderId: orderNum,
       rawId: rawId,
@@ -121,6 +129,8 @@ class VendorOrderModel {
       pickupOtp: activeOtp.isNotEmpty ? activeOtp : '5831',
       status: status,
       itemsList: items.map((e) => Map<String, dynamic>.from(e as Map)).toList(),
+      totalAmount: parsedAmount,
+      remainingSeconds: remSecs,
     );
   }
 }

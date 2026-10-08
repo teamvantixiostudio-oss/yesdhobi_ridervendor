@@ -4,6 +4,7 @@ import 'package:yesdhobi_ridervendor/screens/vendor_active_orders_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/vendor_order_details_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/vendor_services_rates_screen.dart';
 import 'package:yesdhobi_ridervendor/services/vendor_order_service.dart';
+import 'package:yesdhobi_ridervendor/services/vendor_notification_service.dart';
 import 'package:yesdhobi_ridervendor/screens/vendor_new_orders_screen.dart';
 import 'package:yesdhobi_ridervendor/widgets/vendor_persistent_otp_banner.dart';
 import 'package:yesdhobi_ridervendor/models/vendor_order_model.dart';
@@ -22,17 +23,16 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
   void initState() {
     super.initState();
     VendorOrderService.instance.getVendorProfile();
-    // Polling lives in the service now, not in this screen's own timer: the
-    // server offers an order to one shop at a time and moves on after 90
-    // seconds, and the old timer stopped the moment the shop opened any other
-    // screen - so offers arrived and expired with nobody watching.
+    // Polling lives in the service now so offers are tracked across screens
     VendorOrderService.instance.startPolling();
     VendorOrderService.instance.incomingRequest.addListener(_onIncomingRequest);
+    VendorNotificationService.instance.startListeningForVendorOrders();
   }
 
   @override
   void dispose() {
     VendorOrderService.instance.incomingRequest.removeListener(_onIncomingRequest);
+    VendorNotificationService.instance.stopListeningForVendorOrders();
     super.dispose();
   }
 
@@ -42,46 +42,7 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
     if (order == null || !mounted) return;
     VendorOrderService.instance.incomingRequest.value = null;
 
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('New order request'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              order.orderId,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            Text('${order.customerName} - ${order.itemCount} items'),
-            const SizedBox(height: 4),
-            const Text(
-              'A rider is on the way to collect it. Accept to take this order.',
-              style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Later'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(dialogContext).pop();
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const VendorNewOrdersScreen()),
-              );
-            },
-            child: const Text('View request'),
-          ),
-        ],
-      ),
-    );
+    VendorNotificationService.instance.showIncomingDialogGlobally(order);
   }
 
   @override
@@ -90,7 +51,7 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
       valueListenable: VendorOrderService.instance.orderUpdateNotifier,
       builder: (context, _, child) {
         final service = VendorOrderService.instance;
-        final recentOrders = service.orders;
+        final recentOrders = service.recentOrders;
 
         final initials = service.shopName.isNotEmpty
             ? service.shopName
@@ -730,12 +691,16 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF64748B),
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF64748B),
+                    ),
                   ),
                 ),
                 if (onTap != null)

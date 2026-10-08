@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yesdhobi_ridervendor/models/vendor_order_model.dart';
 import 'api_client.dart';
+import 'vendor_notification_service.dart';
 
 class VendorOrderService {
   static final VendorOrderService instance = VendorOrderService._internal();
@@ -14,6 +15,7 @@ class VendorOrderService {
 
   final List<VendorOrderModel> _orders = [];
   final List<VendorOrderModel> _newRequests = [];
+  final List<VendorOrderModel> _completedOrders = [];
   final ValueNotifier<VendorOrderModel?> activeOtpOrder = ValueNotifier<VendorOrderModel?>(null);
   final ValueNotifier<int> orderUpdateNotifier = ValueNotifier<int>(0);
 
@@ -28,6 +30,7 @@ class VendorOrderService {
   String _shopName = 'Star Bright Laundry';
   String _vendorDisplayId = '#V-8947';
   double _todayRevenue = 0.0;
+  int _todayCompletedCount = 0;
   bool _isLoading = false;
 
   String _shopAddress = '';
@@ -40,6 +43,11 @@ class VendorOrderService {
 
   List<VendorOrderModel> get orders => List.unmodifiable(_orders);
   List<VendorOrderModel> get newRequests => List.unmodifiable(_newRequests);
+  List<VendorOrderModel> get completedOrders => List.unmodifiable(_completedOrders);
+  List<VendorOrderModel> get recentOrders {
+    final all = <VendorOrderModel>[..._orders, ..._completedOrders];
+    return List.unmodifiable(all);
+  }
   double get todayRevenue => _todayRevenue;
   bool get isLoading => _isLoading;
   String get shopName => _shopName;
@@ -184,7 +192,10 @@ class VendorOrderService {
       ..clear()
       ..addAll(current);
     _firstFetchDone = true;
-    if (arrival != null) incomingRequest.value = arrival;
+    if (arrival != null) {
+      incomingRequest.value = arrival;
+      VendorNotificationService.instance.triggerIncomingVendorOrder(arrival);
+    }
   }
 
   Future<void> fetchOrders() async {
@@ -212,11 +223,30 @@ class VendorOrderService {
         }
       }
 
-      // Fetch today's earnings
+      // Fetch completed orders
+      try {
+        final compRes = await _client.get('/vendors/me/orders?tab=completed');
+        final compItems = (compRes['data'] is List) ? (compRes['data'] as List) : [];
+        _completedOrders.clear();
+        for (final it in compItems) {
+          if (it is Map<String, dynamic>) {
+            _completedOrders.add(VendorOrderModel.fromApiJson(it));
+          }
+        }
+      } catch (e) {
+        debugPrint('Error fetching completed vendor orders: $e');
+      }
+
+      // Fetch today's earnings & completed count
       try {
         final earnings = await _client.get('/vendors/me/earnings');
-        if (earnings['today'] != null && earnings['today']['amount'] != null) {
-          _todayRevenue = (earnings['today']['amount'] as num).toDouble();
+        if (earnings['today'] != null) {
+          if (earnings['today']['amount'] != null) {
+            _todayRevenue = (earnings['today']['amount'] as num).toDouble();
+          }
+          if (earnings['today']['orders'] != null) {
+            _todayCompletedCount = (earnings['today']['orders'] as num).toInt();
+          }
         }
       } catch (_) {}
 
@@ -342,9 +372,9 @@ class VendorOrderService {
 
   int get newRequestsCount => _newRequests.length;
   int get inProgressCount => _orders.where((o) => !o.isPackaged && !o.isCompleted).length;
-  int get readyCount => _orders.where((o) => o.isPackaged && !o.isRiderBooked && !o.isCompleted).length;
+  int get readyCount => _orders.where((o) => o.isPackaged && !o.isCompleted).length;
   int get outForDeliveryCount => _orders.where((o) => o.isRiderBooked && !o.isCompleted).length;
-  int get completedCount => _orders.where((o) => o.isCompleted).length;
+  int get completedCount => _todayCompletedCount > 0 ? _todayCompletedCount : _completedOrders.length;
 
   Future<Map<String, dynamic>> getEarnings() async {
     final res = await _client.get('/vendors/me/earnings');
@@ -362,6 +392,8 @@ class VendorOrderService {
     await _client.clearAuth('VENDOR');
     _orders.clear();
     _newRequests.clear();
+    _completedOrders.clear();
+    _todayCompletedCount = 0;
     activeOtpOrder.value = null;
     orderUpdateNotifier.value++;
   }
@@ -371,6 +403,10 @@ class VendorOrderService {
     _seenRequestIds.clear();
     _firstFetchDone = false;
     incomingRequest.value = null;
+    _orders.clear();
+    _newRequests.clear();
+    _completedOrders.clear();
+    _todayCompletedCount = 0;
     activeOtpOrder.value = null;
     orderUpdateNotifier.value = 0;
   }
