@@ -54,19 +54,15 @@ class _RiderRegisterStep2ScreenState extends State<RiderRegisterStep2Screen> {
   }
 
   Future<void> _pickDrivingLicensePhoto() async {
-    final result = await ImagePickerHelper.showSourceSelector(
-      context,
-      title: 'Upload Driving License Front',
-    );
+    final result = await ImagePickerHelper.captureDocumentPhoto(context);
 
-    if (result != null && result.isSuccess && result.path != null) {
+    if (result.isSuccess && result.path != null) {
       setState(() {
         _model.drivingLicensePhotoPath = result.path;
         _model.drivingLicensePhotoSize = result.sizeInBytes;
         _dlPhotoError = null;
       });
-    } else if (result != null &&
-        result.errorMessage != null &&
+    } else if (result.errorMessage != null &&
         result.errorMessage != 'No photo captured' &&
         result.errorMessage != 'No image selected') {
       if (!mounted) return;

@@ -34,7 +34,7 @@ class _IdentityVerificationScreenState
       _isLoading = true;
     });
 
-    final result = await ImagePickerHelper.pickFromGallery(context);
+    final result = await ImagePickerHelper.captureDocumentPhoto(context);
 
     if (!mounted) return;
     setState(() {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:yesdhobi_ridervendor/theme.dart';
+import 'package:yesdhobi_ridervendor/screens/forgot_password_screen.dart';
 import 'package:yesdhobi_ridervendor/widgets/custom_text_field.dart';
 import 'package:yesdhobi_ridervendor/widgets/custom_back_button.dart';
 import 'package:yesdhobi_ridervendor/widgets/app_logo.dart';
@@ -336,16 +337,12 @@ class _VendorLoginScreenState extends State<VendorLoginScreen> {
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text('Please contact Yes Dhobi admin support to reset your partner password.'),
-                        behavior: SnackBarBehavior.floating,
-                        backgroundColor: AppTheme.primaryColor,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                    );
-                  },
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ForgotPasswordScreen(role: 'vendor'),
+                    ),
+                  ),
                   child: const Text(
                     'Forgot Password?',
                     style: TextStyle(

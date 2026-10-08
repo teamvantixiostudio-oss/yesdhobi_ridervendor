@@ -7,6 +7,7 @@ import 'package:yesdhobi_ridervendor/screens/confirm_vendor_dropoff_screen.dart'
 import 'package:yesdhobi_ridervendor/screens/confirm_pickup_screen.dart';
 import 'package:yesdhobi_ridervendor/widgets/custom_back_button.dart';
 import 'package:yesdhobi_ridervendor/widgets/app_bottom_nav.dart';
+import 'package:yesdhobi_ridervendor/services/rider_api_service.dart';
 
 class RiderOrderDetailsScreen extends StatelessWidget {
   final OrderFlowState? orderState;
@@ -356,6 +357,7 @@ class RiderOrderDetailsScreen extends StatelessWidget {
               const SizedBox(height: 24),
 
               // Action Buttons
+              _ArrivedButton(state: state),
               SizedBox(
                 width: double.infinity,
                 height: 56,
@@ -600,4 +602,96 @@ class MapMockPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// "Arrived at Location" - the rider taps this on reaching the customer (or
+/// the shop) and the customer's tracking screen updates immediately, instead
+/// of them wondering where the rider is until the OTP step.
+///
+/// Its own small stateful widget so the details screen can stay stateless.
+class _ArrivedButton extends StatefulWidget {
+  final OrderFlowState state;
+
+  const _ArrivedButton({required this.state});
+
+  @override
+  State<_ArrivedButton> createState() => _ArrivedButtonState();
+}
+
+class _ArrivedButtonState extends State<_ArrivedButton> {
+  bool _sending = false;
+  bool _arrived = false;
+
+  bool get _finished =>
+      widget.state.stage == DeliveryStage.delivered || widget.state.rawStatus == 'DELIVERED';
+
+  String? get _orderId {
+    final raw = widget.state.rawOrderId;
+    if (raw != null && raw.isNotEmpty) return raw;
+    final display = widget.state.orderId.replaceAll('#', '').trim();
+    return display.isEmpty ? null : display;
+  }
+
+  Future<void> _markArrived() async {
+    final id = _orderId;
+    if (_sending || id == null) return;
+    setState(() => _sending = true);
+    try {
+      final res = await RiderApiService.instance.markArrived(id);
+      if (!mounted) return;
+      setState(() {
+        _arrived = true;
+        _sending = false;
+      });
+      final already = res['alreadyMarked'] == true;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(already ? 'Already marked as arrived.' : 'The customer has been told you have arrived.'),
+          backgroundColor: const Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _sending = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception:', '').trim()),
+          backgroundColor: const Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_finished) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: ElevatedButton.icon(
+          onPressed: (_sending || _arrived) ? null : _markArrived,
+          icon: Icon(_arrived ? Icons.check_circle_outline : Icons.location_on_outlined),
+          label: Text(
+            _arrived ? 'Customer notified' : "I've Arrived at Location",
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _arrived ? const Color(0xFF94A3B8) : const Color(0xFF0EA5E9),
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: const Color(0xFF94A3B8),
+            disabledForegroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+      ),
+    );
+  }
 }

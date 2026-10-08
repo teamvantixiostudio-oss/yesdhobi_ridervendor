@@ -189,6 +189,13 @@ class RiderApiService {
     });
   }
 
+  /// "Arrived at location". Records the moment the rider reaches the doorstep
+  /// (or the shop) so the customer's tracking screen and the admin panel stop
+  /// guessing. Safe to call twice - the server replies `alreadyMarked`.
+  Future<Map<String, dynamic>> markArrived(String orderId) async {
+    return await _client.post('/riders/me/orders/$orderId/arrived', {});
+  }
+
   Future<Map<String, dynamic>> confirmPickup(String orderId, String otp) async {
     return await _client.post('/riders/me/orders/$orderId/confirm-pickup', {'otp': otp});
   }

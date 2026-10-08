@@ -61,19 +61,15 @@ class _RiderRegisterStep3ScreenState extends State<RiderRegisterStep3Screen> {
   }
 
   Future<void> _pickAadhaarFront() async {
-    final result = await ImagePickerHelper.showSourceSelector(
-      context,
-      title: 'Upload Aadhaar Card Front',
-    );
+    final result = await ImagePickerHelper.captureDocumentPhoto(context);
 
-    if (result != null && result.isSuccess && result.path != null) {
+    if (result.isSuccess && result.path != null) {
       setState(() {
         _model.aadhaarFrontPath = result.path;
         _model.aadhaarFrontSize = result.sizeInBytes;
         _aadhaarFrontError = null;
       });
-    } else if (result != null &&
-        result.errorMessage != null &&
+    } else if (result.errorMessage != null &&
         result.errorMessage != 'No photo captured' &&
         result.errorMessage != 'No image selected') {
       if (!mounted) return;
@@ -91,19 +87,15 @@ class _RiderRegisterStep3ScreenState extends State<RiderRegisterStep3Screen> {
   }
 
   Future<void> _pickAadhaarBack() async {
-    final result = await ImagePickerHelper.showSourceSelector(
-      context,
-      title: 'Upload Aadhaar Card Back',
-    );
+    final result = await ImagePickerHelper.captureDocumentPhoto(context);
 
-    if (result != null && result.isSuccess && result.path != null) {
+    if (result.isSuccess && result.path != null) {
       setState(() {
         _model.aadhaarBackPath = result.path;
         _model.aadhaarBackSize = result.sizeInBytes;
         _aadhaarBackError = null;
       });
-    } else if (result != null &&
-        result.errorMessage != null &&
+    } else if (result.errorMessage != null &&
         result.errorMessage != 'No photo captured' &&
         result.errorMessage != 'No image selected') {
       if (!mounted) return;

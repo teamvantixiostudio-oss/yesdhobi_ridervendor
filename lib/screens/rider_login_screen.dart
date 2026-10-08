@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yesdhobi_ridervendor/theme.dart';
+import 'package:yesdhobi_ridervendor/screens/forgot_password_screen.dart';
 import 'package:yesdhobi_ridervendor/widgets/app_logo.dart';
 import 'package:yesdhobi_ridervendor/widgets/custom_text_field.dart';
 import 'package:yesdhobi_ridervendor/widgets/custom_back_button.dart';
@@ -248,16 +249,12 @@ class _RiderLoginScreenState extends State<RiderLoginScreen> {
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: const Text('Password reset instructions will be sent via SMS to your registered mobile.'),
-                        backgroundColor: AppTheme.primaryColor,
-                        behavior: SnackBarBehavior.floating,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                    );
-                  },
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ForgotPasswordScreen(role: 'rider'),
+                    ),
+                  ),
                   child: const Text(
                     'Forgot Password?',
                     style: TextStyle(

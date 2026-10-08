@@ -59,7 +59,12 @@ class ImagePickerHelper {
     }
   }
 
-  /// Opens the device camera to take a document photo (rear camera)
+  /// Opens the device camera to take a document photo (rear camera).
+  ///
+  /// Every identity document and registration photo goes through here or
+  /// [takeSelfie]: they have to be live captures, because a photo of a photo
+  /// defeats the point of verifying the person. Do not swap these for
+  /// [pickFromGallery] or [showSourceSelector].
   static Future<ImagePickResult> captureDocumentPhoto(BuildContext context) async {
     try {
       final XFile? photo = await _picker.pickImage(
@@ -99,6 +104,8 @@ class ImagePickerHelper {
   }
 
   /// Opens the device gallery to pick an image
+  /// Gallery picker. NOT for identity documents or registration photos -
+  /// those must be live camera captures (see [captureDocumentPhoto]).
   static Future<ImagePickResult> pickFromGallery(BuildContext context) async {
     try {
       final XFile? image = await _picker.pickImage(
