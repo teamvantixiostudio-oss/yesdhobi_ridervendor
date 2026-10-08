@@ -1,12 +1,11 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:yesdhobi_ridervendor/widgets/vendor_bottom_nav.dart';
 import 'package:yesdhobi_ridervendor/screens/vendor_active_orders_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/vendor_order_details_screen.dart';
 import 'package:yesdhobi_ridervendor/screens/vendor_services_rates_screen.dart';
 import 'package:yesdhobi_ridervendor/services/vendor_order_service.dart';
-import 'package:yesdhobi_ridervendor/widgets/vendor_persistent_otp_banner.dart';
 import 'package:yesdhobi_ridervendor/screens/vendor_new_orders_screen.dart';
+import 'package:yesdhobi_ridervendor/widgets/vendor_persistent_otp_banner.dart';
 import 'package:yesdhobi_ridervendor/models/vendor_order_model.dart';
 import 'package:yesdhobi_ridervendor/screens/portal_selection_screen.dart';
 
@@ -19,24 +18,70 @@ class VendorHomeScreen extends StatefulWidget {
 
 class _VendorHomeScreenState extends State<VendorHomeScreen> {
   bool _isOpen = true;
-  Timer? _pollTimer;
-
   @override
   void initState() {
     super.initState();
-    VendorOrderService.instance.fetchOrders();
     VendorOrderService.instance.getVendorProfile();
-    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
-      if (mounted) {
-        VendorOrderService.instance.fetchOrders();
-      }
-    });
+    // Polling lives in the service now, not in this screen's own timer: the
+    // server offers an order to one shop at a time and moves on after 90
+    // seconds, and the old timer stopped the moment the shop opened any other
+    // screen - so offers arrived and expired with nobody watching.
+    VendorOrderService.instance.startPolling();
+    VendorOrderService.instance.incomingRequest.addListener(_onIncomingRequest);
   }
 
   @override
   void dispose() {
-    _pollTimer?.cancel();
+    VendorOrderService.instance.incomingRequest.removeListener(_onIncomingRequest);
     super.dispose();
+  }
+
+  /// A rider has accepted a pickup and the order has been offered to us.
+  void _onIncomingRequest() {
+    final order = VendorOrderService.instance.incomingRequest.value;
+    if (order == null || !mounted) return;
+    VendorOrderService.instance.incomingRequest.value = null;
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('New order request'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              order.orderId,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            Text('${order.customerName} - ${order.itemCount} items'),
+            const SizedBox(height: 4),
+            const Text(
+              'A rider is on the way to collect it. Accept to take this order.',
+              style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Later'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const VendorNewOrdersScreen()),
+              );
+            },
+            child: const Text('View request'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

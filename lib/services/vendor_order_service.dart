@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -15,6 +16,14 @@ class VendorOrderService {
   final List<VendorOrderModel> _newRequests = [];
   final ValueNotifier<VendorOrderModel?> activeOtpOrder = ValueNotifier<VendorOrderModel?>(null);
   final ValueNotifier<int> orderUpdateNotifier = ValueNotifier<int>(0);
+
+  /// Set when an order the shop has not seen before turns up in the "new"
+  /// tab, so the UI can put it in front of them. Cleared once shown.
+  final ValueNotifier<VendorOrderModel?> incomingRequest = ValueNotifier<VendorOrderModel?>(null);
+
+  Timer? _pollTimer;
+  final Set<String> _seenRequestIds = <String>{};
+  bool _firstFetchDone = false;
 
   String _shopName = 'Star Bright Laundry';
   String _vendorDisplayId = '#V-8947';
@@ -137,6 +146,41 @@ class VendorOrderService {
 
   // ---- Orders ----
 
+  /// Keep the shop's queue current while they are signed in.
+  ///
+  /// The server offers an order to one partner at a time, for 90 seconds, as
+  /// soon as a rider accepts the pickup. Nothing was watching for that: the
+  /// list was only loaded when the screen opened or the shop pulled to
+  /// refresh, so an offer could come and expire without anyone noticing.
+  void startPolling({Duration every = const Duration(seconds: 3)}) {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(every, (_) => fetchOrders());
+    fetchOrders();
+  }
+
+  void stopPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+  }
+
+  /// Newly arrived offers, ignoring the ones already on screen. The very first
+  /// fetch after signing in only primes the set - we do not want to pop a
+  /// dialog for every order that was already waiting.
+  void _flagNewArrivals() {
+    final current = <String>{};
+    VendorOrderModel? arrival;
+    for (final r in _newRequests) {
+      final key = r.rawId ?? r.orderId;
+      current.add(key);
+      if (_firstFetchDone && !_seenRequestIds.contains(key)) arrival ??= r;
+    }
+    _seenRequestIds
+      ..clear()
+      ..addAll(current);
+    _firstFetchDone = true;
+    if (arrival != null) incomingRequest.value = arrival;
+  }
+
   Future<void> fetchOrders() async {
     _isLoading = true;
     try {
@@ -149,6 +193,8 @@ class VendorOrderService {
           _newRequests.add(VendorOrderModel.fromApiJson(it));
         }
       }
+
+      _flagNewArrivals();
 
       // Fetch active/in-progress orders
       final activeRes = await _client.get('/vendors/me/orders?tab=active');
@@ -306,6 +352,7 @@ class VendorOrderService {
   }
 
   Future<void> logout() async {
+    stopPolling();
     await _client.clearAuth('VENDOR');
     _orders.clear();
     _newRequests.clear();
@@ -314,6 +361,10 @@ class VendorOrderService {
   }
 
   void reset() {
+    stopPolling();
+    _seenRequestIds.clear();
+    _firstFetchDone = false;
+    incomingRequest.value = null;
     activeOtpOrder.value = null;
     orderUpdateNotifier.value = 0;
   }
