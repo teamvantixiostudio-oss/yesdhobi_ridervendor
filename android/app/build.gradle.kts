@@ -3,8 +3,21 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Release signing details live in android/key.properties, which is NOT in git.
+// Copy key.properties.example, fill it in, and put the .jks beside it. Without
+// that file the release build falls back to the debug key - fine for
+// `flutter run --release` on a device, but the Play Store rejects a
+// debug-signed bundle, so the real upload needs the real key.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = java.util.Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+val hasReleaseKeystore = keystoreProperties.getProperty("storeFile") != null
+
 android {
-    namespace = "com.example.yesdhobi_ridervendor"
+    namespace = "com.yesdhobi.partner"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -17,16 +30,34 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.yesdhobi_ridervendor"
+        applicationId = "com.yesdhobi.partner"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 }
